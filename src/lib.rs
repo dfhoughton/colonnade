@@ -416,8 +416,7 @@ impl Colonnade {
                                 if winners.is_empty() {
                                     break;
                                 }
-                                if surplus < winners.len() {
-                                    // fixme
+                                if surplus <= winners.len() {
                                     for &&i in winners.iter().take(surplus) {
                                         self.colonnade[i].width += 1;
                                     }
