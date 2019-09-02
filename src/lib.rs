@@ -532,6 +532,21 @@ impl Colonnade {
         }
         Ok(())
     }
+    pub fn clear_limits_all(&mut self) {
+       for i in 0..self.len() {
+           self.colonnade[i].max_width = None;
+           self.colonnade[i].min_width = None;
+       }
+    }
+    pub fn clear_limits(&mut self, index: usize) -> Result<(), ColonnadeError> {
+        if index < self.len() {
+            self.colonnade[index].max_width = None;
+            self.colonnade[index].min_width = None;
+                Ok(())
+        } else {
+            Err(ColonnadeError::OutOfBounds)
+        }
+    }
     pub fn alignment_all(&mut self, alignment: Alignment) {
         for i in 0..self.len() {
             self.colonnade[i].alignment = alignment.clone();
