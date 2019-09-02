@@ -144,3 +144,16 @@ fn fixed_width() {
     assert_eq!(lines[0], "abcd- g    ");
     assert_eq!(lines[1], "ef         ");
 }
+#[test]
+fn priority() {
+    let mut colonnade = Colonnade::new(2, 20).unwrap();
+    colonnade.priority(0, 0).unwrap();
+    let data = vec![vec!["a bunch of words","these are some words"]];
+    let lines = colonnade.tabulate(&data).unwrap();
+    println!("{:?}", lines);
+    assert_eq!(lines.len(), 4);
+    assert_eq!(lines[0], "a bunch of     these");
+    assert_eq!(lines[1], "words          are  ");
+    assert_eq!(lines[2], "               some ");
+    assert_eq!(lines[3], "               words");
+}
