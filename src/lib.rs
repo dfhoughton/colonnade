@@ -10,7 +10,7 @@ used by adding `colonnade` to your dependencies in your project's `Cargo.toml`.
 
 ```toml
 [dependencies]
-colondate = "0"
+colonnade = "0"
 ```
 
 # Example
