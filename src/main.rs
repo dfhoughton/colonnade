@@ -21,7 +21,6 @@ fn main() {
     colonnade.columns[1].clear_limits(); // the central column has no fixed size limits
     colonnade.columns[0].alignment(Alignment::Right);
     colonnade.columns[1].alignment(Alignment::Center);
-    colonnade.columns[2].alignment(Alignment::Left);
     colonnade.spaces_between_rows(1); // add a blank link between rows
 
     // now print out the table

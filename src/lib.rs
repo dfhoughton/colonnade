@@ -10,7 +10,7 @@ used by adding `colonnade` to your dependencies in your project's `Cargo.toml`.
 
 ```toml
 [dependencies]
-colonnade = "0"
+colonnade = "1"
 ```
 
 # Example
@@ -41,7 +41,6 @@ fn main() {
     colonnade.columns[1].clear_limits();      // but then remove this restriction on the central column
     colonnade.columns[0].alignment(Alignment::Right);
     colonnade.columns[1].alignment(Alignment::Center);
-    colonnade.columns[2].alignment(Alignment::Left);
     colonnade.spaces_between_rows(1);         // add a blank link between rows
 
     // now print out the table
@@ -97,7 +96,7 @@ impl std::fmt::Display for ColonnadeError {
 
 impl std::error::Error for ColonnadeError {}
 
-/// Alignments one can apply to columns of text.
+/// Alignments left-to-right one can apply to columns of text.
 #[derive(Debug, Clone)]
 pub enum Alignment {
     /// Left justification -- the default alignment
@@ -108,11 +107,21 @@ pub enum Alignment {
     Center,
 }
 
+/// Vertical alignments of text within a column.
+#[derive(Debug, Clone, PartialEq)]
+pub enum VerticalAlignment {
+    /// the default vertical alignment
+    Top,
+    Middle,
+    Bottom,
+}
+
 /// A struct holding formatting information for a particular column.
 #[derive(Debug, Clone)]
 pub struct Column {
     index: usize,
     alignment: Alignment,
+    vertical_alignment: VerticalAlignment,
     left_margin: usize,
     width: usize,
     priority: usize,
@@ -129,6 +138,7 @@ impl Column {
         Column {
             index: index,
             alignment: Alignment::Left,
+            vertical_alignment: VerticalAlignment::Top,
             left_margin: 1,
             width: 0, // claimed width
             priority: usize::max_value(),
@@ -389,6 +399,27 @@ impl Column {
     /// ```
     pub fn alignment(&mut self, alignment: Alignment) {
         self.alignment = alignment;
+    }
+    /// Assign a particular column a particular vertical alignment. The default alignment is top.
+    ///
+    /// # Arguments
+    ///
+    /// * `vertical_alignment` - The desired alignment.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,VerticalAlignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// // the first column should be right-aligned (it's numeric)
+    /// colonnade.columns[0].vertical_alignment(VerticalAlignment::Middle);
+    /// # Ok(()) }
+    /// ```
+    pub fn vertical_alignment(&mut self, vertical_alignment: VerticalAlignment) {
+        self.vertical_alignment = vertical_alignment;
     }
     /// Assign a particular column a particular left margin. The left margin is a number of blank spaces
     /// before the content of the column. By default the first column has a left margin of 0
@@ -754,7 +785,6 @@ impl Colonnade {
     /// colonnade.columns[1].clear_limits();
     /// colonnade.columns[0].alignment(Alignment::Right);
     /// colonnade.columns[1].alignment(Alignment::Center);
-    /// colonnade.columns[2].alignment(Alignment::Left);
     /// colonnade.spaces_between_rows(1);
     /// // if the text is in colored cells, you will probably want some padding
     /// colonnade.padding(1);
@@ -880,6 +910,7 @@ impl Colonnade {
             return;
         }
         // otherwise, we build these lists into lines, we may use up some of these lists before others
+        let offset = buffer.len(); // each vector in buffer will have the same number of lines
         while !words
             .iter()
             .all(|(pt, sentence, pb)| pb == &0 && pt == &0 && sentence.is_empty())
@@ -977,6 +1008,52 @@ impl Colonnade {
             }
             buffer.push(pieces);
         }
+        // now fix vertical alignment
+        'outer: for c in self.columns.iter() {
+            match c.vertical_alignment {
+                VerticalAlignment::Top => (),
+                _ => {
+                    let blank = c.blank_line();
+                    let end = buffer.len() - c.padding_bottom;
+                    let mut movable_lines = 0;
+                    let mut pointer = end - 1;
+                    let top_pointer = offset + c.padding_top;
+                    while buffer[pointer][c.index].1 == blank {
+                        movable_lines += 1;
+                        if pointer == top_pointer {
+                            // this cell contains nothing but blank lines so alignment is irrelevant
+                            continue 'outer;
+                        }
+                        pointer -= 1;
+                    }
+                    if movable_lines == 0 {
+                        continue 'outer;
+                    }
+                    // pointer now points to the last movable line
+                    // top_pointer points to the insertion index where we can put blank lines
+                    // end points to an immovable index (perhaps beyond the end of the vector)
+                    let lines_to_move = if c.vertical_alignment == VerticalAlignment::Middle {
+                        movable_lines / 2
+                    } else {
+                        movable_lines
+                    };
+                    // we extract the tuples for the relevant column from top_pointer to end, rotate
+                    // them lines_to_move times, and reinstall them
+                    let mut rotator = Vec::with_capacity(end - top_pointer);
+                    for i in top_pointer..end {
+                        rotator.push(buffer[i].remove(c.index));
+                    }
+                    for _ in 0..lines_to_move {
+                        let pair = rotator.remove(rotator.len() - 1);
+                        rotator.insert(0, pair);
+                    }
+                    for i in top_pointer..end {
+                        buffer[i].insert(c.index, rotator.remove(0));
+                    }
+                },
+            }
+        }
+        // add row-separating lines
         if !last_row {
             for _ in 0..self.spaces_between_rows {
                 buffer.push(vec![(self.blank_line(), String::new())]);
@@ -1361,6 +1438,29 @@ impl Colonnade {
     pub fn alignment(&mut self, alignment: Alignment) {
         for i in 0..self.len() {
             self.columns[i].alignment(alignment.clone());
+        }
+    }
+    /// Assign all columns the same vertical alignment. The default alignment is top.
+    ///
+    /// # Arguments
+    ///
+    /// * `vertical_alignment` - The desired alignment.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment, VerticalAlignment, Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// // all columns should be right-aligned (they're numeric)
+    /// colonnade.vertical_alignment(VerticalAlignment::Middle);
+    /// # Ok(()) }
+    /// ```
+    pub fn vertical_alignment(&mut self, vertical_alignment: VerticalAlignment) {
+        for i in 0..self.len() {
+            self.columns[i].vertical_alignment(vertical_alignment.clone());
         }
     }
     /// Assign all columns the same left margin. The left margin is a number of blank spaces
