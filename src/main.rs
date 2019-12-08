@@ -1,5 +1,6 @@
 extern crate colonnade;
 use colonnade::{Alignment, Colonnade};
+extern crate term;
 
 #[allow(unused_must_use)]
 fn main() {
@@ -8,7 +9,7 @@ fn main() {
         vec![
             "Colonnade lets you format text in columns.",
             "As you can see, it supports text alignment, viewport width, and column widths.",
-            "It doesn't yet support color codes or other formatting, though that may come.",
+            "It doesn't natively support color codes, but it is easy enough to combine with a crate like term.",
         ],
         vec!["", "Two or more rows of columns makes a table.", ""],
     ];
@@ -23,9 +24,28 @@ fn main() {
     colonnade.alignment(1, Alignment::Center);
     colonnade.alignment(2, Alignment::Left);
     colonnade.spaces_between_rows(1); // add a blank link between rows
+    colonnade.padding_all(1);
 
+    let mut t = term::stdout().unwrap();
     // now print out the table
-    for line in colonnade.tabulate(&text).unwrap() {
-        println!("{}", line);
+    for line in colonnade.macerate(&text).unwrap() {
+        for (i, (margin, text)) in line.iter().enumerate() {
+            write!(t, "{}", margin);
+            let background_color = if i % 2 == 0 {
+                term::color::WHITE
+            } else {
+                term::color::BLACK
+            };
+            let foreground_color = match i % 3 {
+                1 => term::color::GREEN,
+                2 => term::color::RED,
+                _ => term::color::BLUE,
+            };
+            t.bg(background_color).unwrap();
+            t.fg(foreground_color).unwrap();
+            write!(t, "{}", text).unwrap();
+            t.reset();
+        }
+        println!();
     }
 }

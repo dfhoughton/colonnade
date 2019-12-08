@@ -4,7 +4,7 @@ use colonnade::{Alignment, Colonnade};
 #[test]
 fn minimal_table() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    let data = vec![vec!["1", "2", "3"], vec!["4", "5", "6"]];
+    let data = vec![vec![1, 2, 3], vec![4, 5, 6]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], "1 2 3");
@@ -13,7 +13,7 @@ fn minimal_table() {
 #[test]
 fn justification() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    let data = vec![vec!["7", "8", "9"], vec!["10", "11", "12"]];
+    let data = vec![vec![7, 8, 9], vec![10, 11, 12]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], "7  8  9 ");
@@ -23,7 +23,7 @@ fn justification() {
 fn left_justification() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
     colonnade.alignment_all(Alignment::Left);
-    let data = vec![vec!["7", "8", "9"], vec!["10", "11", "12"]];
+    let data = vec![vec![7, 8, 9], vec![10, 11, 12]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], "7  8  9 ");
@@ -33,7 +33,7 @@ fn left_justification() {
 fn right_justification() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
     colonnade.alignment_all(Alignment::Right);
-    let data = vec![vec!["7", "8", "9"], vec!["10", "11", "12"]];
+    let data = vec![vec![7, 8, 9], vec![10, 11, 12]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], " 7  8  9");
@@ -43,7 +43,7 @@ fn right_justification() {
 fn center_justification() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
     colonnade.alignment_all(Alignment::Center);
-    let data = vec![vec!["7", "8", "9"], vec!["100", "110", "120"]];
+    let data = vec![vec![7, 8, 9], vec![100, 110, 120]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], " 7   8   9 ");
@@ -55,7 +55,7 @@ fn left_center_right() {
     colonnade.alignment(0, Alignment::Left).unwrap();
     colonnade.alignment(1, Alignment::Center).unwrap();
     colonnade.alignment(2, Alignment::Right).unwrap();
-    let data = vec![vec!["7", "8", "9"], vec!["100", "110", "120"]];
+    let data = vec![vec![7, 8, 9], vec![100, 110, 120]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], "7    8    9");
@@ -88,7 +88,7 @@ fn wrap2() {
 fn spaces_between_rows() {
     let mut colonnade = Colonnade::new(3, 10).unwrap();
     colonnade.spaces_between_rows(1);
-    let data = vec![vec!["1", "2", "3"], vec!["4", "5", "6"]];
+    let data = vec![vec![1, 2, 3], vec![4, 5, 6]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 3);
     assert_eq!(lines[0], "1 2 3");
@@ -119,7 +119,7 @@ fn too_skinny_to_hyphenate() {
 fn min_width() {
     let mut colonnade = Colonnade::new(2, 10).unwrap();
     colonnade.min_width(0, 5).unwrap();
-    let data = vec![vec!["a","b"]];
+    let data = vec![vec!["a", "b"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 1);
     assert_eq!(lines[0], "a     b")
@@ -128,7 +128,7 @@ fn min_width() {
 fn max_width() {
     let mut colonnade = Colonnade::new(2, 10).unwrap();
     colonnade.max_width(0, 5).unwrap();
-    let data = vec![vec!["abcdef","g"]];
+    let data = vec![vec!["abcdef", "g"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], "abcd- g");
@@ -138,7 +138,7 @@ fn max_width() {
 fn fixed_width() {
     let mut colonnade = Colonnade::new(2, 11).unwrap();
     colonnade.fixed_width_all(5).unwrap();
-    let data = vec![vec!["abcdef","g"]];
+    let data = vec![vec!["abcdef", "g"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], "abcd- g    ");
@@ -148,7 +148,7 @@ fn fixed_width() {
 fn priority() {
     let mut colonnade = Colonnade::new(2, 20).unwrap();
     colonnade.priority(0, 0).unwrap();
-    let data = vec![vec!["a bunch of words","these are some words"]];
+    let data = vec![vec!["a bunch of words", "these are some words"]];
     let lines = colonnade.tabulate(&data).unwrap();
     println!("{:?}", lines);
     assert_eq!(lines.len(), 4);

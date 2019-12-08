@@ -36,13 +36,13 @@ fn main() {
 
     // configure the table a bit
     colonnade.left_margin_all(4);
-    colonnade.left_margin(0, 8); // the first column should have a left margin 8 spaces wide
-    colonnade.fixed_width_all(15);
-    colonnade.clear_limits(1); // the central column has no fixed size limits
+    colonnade.left_margin(0, 8);              // the first column should have a left margin 8 spaces wide
+    colonnade.fixed_width_all(15);            // first we set all the columns to 15 characters wide
+    colonnade.clear_limits(1);                // but then remove this restriction on the central column
     colonnade.alignment(0, Alignment::Right);
     colonnade.alignment(1, Alignment::Center);
     colonnade.alignment(2, Alignment::Left);
-    colonnade.spaces_between_rows(1); // add a blank link between rows
+    colonnade.spaces_between_rows(1);         // add a blank link between rows
 
     // now print out the table
     for line in colonnade.tabulate(&text).unwrap() {
@@ -117,6 +117,10 @@ struct ColumnSpec {
     priority: usize,
     min_width: Option<usize>,
     max_width: Option<usize>,
+    padding_left: usize,
+    padding_right: usize,
+    padding_top: usize,
+    padding_bottom: usize,
 }
 
 impl ColumnSpec {
@@ -128,6 +132,25 @@ impl ColumnSpec {
             priority: usize::max_value(),
             min_width: None,
             max_width: None,
+            padding_left: 0,
+            padding_right: 0,
+            padding_top: 0,
+            padding_bottom: 0,
+        }
+    }
+    fn horizonal_padding(&self) -> usize {
+        self.padding_left + self.padding_right
+    }
+    fn vertical_padding(&self) -> usize {
+        self.padding_top + self.padding_bottom
+    }
+    fn minimum_width(&self) -> usize {
+        let w1 = self.horizonal_padding();
+        let w2 = self.min_width.unwrap_or(w1);
+        if w2 > w1 {
+            w2
+        } else {
+            w1
         }
     }
     fn effective_width(&self) -> usize {
@@ -136,22 +159,20 @@ impl ColumnSpec {
         } else {
             self.width
         };
-        if self.min_width.unwrap_or(w) > w {
-            self.min_width.unwrap()
+        let m = self.minimum_width();
+        if m > w {
+            m
         } else {
             w
         }
     }
     fn is_shrinkable(&self) -> bool {
-        self.min_width.unwrap_or(0) < self.width
+        self.minimum_width() < self.width
     }
     // shrink as close to width as possible
     fn shrink(&mut self, width: usize) {
-        self.width = if self.min_width.unwrap_or(width) > width {
-            self.min_width.unwrap()
-        } else {
-            width
-        }
+        let m = self.minimum_width();
+        self.width = if m > width { m } else { width }
     }
     // attempt to shrink by decrease amount
     // returns whether there was any shrinkage
@@ -180,8 +201,8 @@ impl ColumnSpec {
         }
         let change = if self.max_width.unwrap_or(width) < width {
             self.max_width.unwrap()
-        } else if self.min_width.unwrap_or(width) > width {
-            self.min_width.unwrap()
+        } else if self.minimum_width() > width {
+            self.minimum_width()
         } else {
             width
         };
@@ -196,6 +217,12 @@ impl ColumnSpec {
     }
     fn outer_width(&self) -> usize {
         self.left_margin + self.effective_width()
+    }
+    fn blank_line(&self) -> String {
+        " ".repeat(self.width)
+    }
+    fn margin(&self) -> String {
+        " ".repeat(self.left_margin)
     }
 }
 
@@ -267,6 +294,20 @@ impl Colonnade {
             .iter()
             .fold(0, |acc, v| acc + v.outer_width())
     }
+    // make a blank line as wide as the table
+    fn blank_line(&self) -> String {
+        " ".repeat(self.required_width())
+    }
+    fn maximum_vertical_padding(&self) -> usize {
+        let mut p = 0;
+        for c in &self.colonnade {
+            let p2 = c.vertical_padding();
+            if p2 > p {
+                p = p2;
+            }
+        }
+        p
+    }
     fn len(&self) -> usize {
         self.colonnade.len()
     }
@@ -293,8 +334,8 @@ impl Colonnade {
         v.reverse();
         v
     }
-    /// Construct a `Colonnade` with default values: left alignment, no column size
-    /// constraints, no blank lines between rows, 1 space margin between columns.
+    /// Converts the raw data in `table` into a vector of strings representing the data in tabular form.
+    /// Blank lines will be zero-width rather than full-width lines of whitespace.
     ///
     /// # Arguments
     ///
@@ -316,52 +357,164 @@ impl Colonnade {
     /// let lines = colonnade.tabulate(&data)?;
     /// # Ok(()) }
     /// ```
-    pub fn tabulate(&mut self, table: &Vec<Vec<&str>>) -> Result<Vec<String>, ColonnadeError> {
+    pub fn tabulate<T>(&mut self, table: &Vec<Vec<T>>) -> Result<Vec<String>, ColonnadeError>
+    where
+        T: ToString,
+    {
+        match self.macerate(table) {
+            Ok(buffer) => Ok(Colonnade::reconstitute_rows(buffer)),
+            Err(e) => Err(e),
+        }
+    }
+    /// Converts the raw data in `table` into a vector of vectors of `(String, String)` tuples
+    /// representing the data in tabular form. Each tuple consists of a whitespace left margin and
+    /// the contents of a column. Separator lines will consist of a margin and text tuple where the
+    /// text is zero-width and the "margin" is as wide as the table.
+    ///
+    /// Maceration is useful if you wish to insert color codes to colorize the data or otherwise
+    /// manipulate the data post-layout.
+    ///
+    /// # Arguments
+    ///
+    /// * `table` - The data to display.
+    ///
+    /// # Errors
+    ///
+    /// Any errors of [`lay_out`](#method.lay_out). If the data has already been laid out, this method will throw no errors.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::Colonnade;
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// let data = vec![vec!["some", "words", "for", "example"]];
+    /// let lines = colonnade.tabulate(&data)?;
+    /// # Ok(()) }
+    /// ```
+    pub fn macerate<T>(
+        &mut self,
+        table: &Vec<Vec<T>>,
+    ) -> Result<Vec<Vec<(String, String)>>, ColonnadeError>
+    where
+        T: ToString,
+    {
         if !self.adjusted {
             match self.lay_out(table) {
                 Err(e) => return Err(e),
                 Ok(()) => (),
             }
         }
+        let owned_table = Colonnade::own_table(table);
+        let ref_table = Colonnade::ref_table(&owned_table);
+        let table = &ref_table;
         let mut buffer = vec![];
+        let mut p = self.maximum_vertical_padding();
+        if p == 0 {
+            p = 1;
+        }
         for (i, row) in table.iter().enumerate() {
-            self.add_row(&mut buffer, row, i == table.len() - 1);
+            self.add_row(&mut buffer, row, i == table.len() - 1, p);
         }
         Ok(buffer)
     }
-    // take one row of untabulated pieces of text and turn it into one or more lines of tabulated text
-    fn add_row(&self, buffer: &mut Vec<String>, row: &Vec<&str>, last_row: bool) {
-        let mut words: Vec<Vec<&str>> = row
+    // utility function to convert a T table to a String table
+    fn own_table<T: ToString>(table: &Vec<Vec<T>>) -> Vec<Vec<String>> {
+        table
             .iter()
-            .map(|w| w.trim().split_whitespace().collect())
+            .map(|v| v.iter().map(|t| t.to_string()).collect::<Vec<String>>())
+            .collect::<Vec<Vec<String>>>()
+    }
+    // utility function to convert a String table to a &str table
+    fn ref_table(table: &Vec<Vec<String>>) -> Vec<Vec<&str>> {
+        table
+            .iter()
+            .map(|v| v.iter().map(|s| s.as_ref()).collect::<Vec<&str>>())
+            .collect::<Vec<Vec<&str>>>()
+    }
+    fn reconstitute_rows(maceration: Vec<Vec<(String, String)>>) -> Vec<String> {
+        maceration
+            .iter()
+            .map(|line| {
+                if line.len() == 1 && line[0].1.len() == 0 {
+                    String::new() // return empty strings instead of fat lines for blank lines
+                } else {
+                    let mut l = String::new();
+                    for (margin, text) in line {
+                        l += margin;
+                        l += text;
+                    }
+                    l
+                }
+            })
+            .collect()
+    }
+    // take one row of untabulated pieces of text and turn it into one or more vectors of (String,String) tuples,
+    // where each tuple represenst a left margin and some column text, the each vector representing one line of tabulated text
+    fn add_row(
+        &self,
+        buffer: &mut Vec<Vec<(String, String)>>,
+        row: &Vec<&str>,
+        last_row: bool,
+        maximum_vertical_padding: usize,
+    ) {
+        // turn the row, a list of blobs of text, into a list of lists of words, recording also the amount of blank space
+        // we need on either side of the words
+        let mut words: Vec<(usize, Vec<&str>, usize)> = row
+            .iter()
+            .enumerate()
+            .map(|(i, w)| {
+                (
+                    self.colonnade[i].padding_top,
+                    w.trim().split_whitespace().collect(),
+                    self.colonnade[i].padding_bottom,
+                )
+            })
             .collect();
-        if words.iter().all(|sentence| sentence.is_empty()) {
-            // blank line
-            buffer.push(String::new());
+        // if all these lists are empty, just add a blank line (and maybe additional blank separator lines)
+        if words.iter().all(|(_, sentence, _)| sentence.is_empty()) {
+            for _ in 0..maximum_vertical_padding {
+                buffer.push(
+                    self.colonnade
+                        .iter()
+                        .map(|c| (c.margin(), c.blank_line()))
+                        .collect(),
+                );
+            }
             if !last_row {
                 for _ in 0..self.spaces_between_rows {
-                    buffer.push(String::new());
+                    buffer.push(vec![(self.blank_line(), String::new())]);
                 }
             }
             return;
         }
-        while !words.iter().all(|sentence| sentence.is_empty()) {
-            let mut line = String::new();
+        // otherwise, we build these lists into lines, we may use up some of these lists before others
+        while !words
+            .iter()
+            .all(|(pt, sentence, pb)| pb == &0 && pt == &0 && sentence.is_empty())
+        {
+            let mut pieces = vec![];
             for (i, c) in self.colonnade.iter().enumerate() {
-                for _ in 0..c.left_margin {
-                    line += " "
-                }
-                if words[i].is_empty() {
+                let left_margin = c.margin();
+                let mut line = String::new();
+                let mut tuple = &mut words[i];
+                if tuple.0 > 0 {
+                    line = c.blank_line();
+                    tuple.0 -= 1;
+                } else if tuple.1.is_empty() {
                     // we've used this one up, but there are still words to deal with in other sentences
-                    for _ in 0..c.width {
-                        line += " "
+                    line = c.blank_line();
+                    if tuple.2 > 0 {
+                        tuple.2 -= 1;
                     }
                 } else {
-                    let mut l = 0;
-                    let mut phrase = String::new();
+                    let mut l = c.padding_left;
+                    let mut phrase = " ".repeat(l);
                     let mut first = true;
-                    while !words[i].is_empty() {
-                        let w = words[i].remove(0);
+                    while !tuple.1.is_empty() {
+                        let w = tuple.1.remove(0);
                         if first {
                             if w.len() == c.width {
                                 // word fills column
@@ -371,19 +524,19 @@ impl Colonnade {
                                 // word overflows column and we must split it
                                 if c.width > 1 {
                                     phrase += &w[0..(c.width - 1)];
-                                    words[i].insert(0, &w[(c.width - 1)..w.len()]);
+                                    tuple.1.insert(0, &w[(c.width - 1)..w.len()]);
                                     phrase += "-";
                                 } else {
                                     phrase += &w[0..1];
-                                    words[i].insert(0, &w[1..w.len()]);
+                                    tuple.1.insert(0, &w[1..w.len()]);
                                 }
                                 break;
                             }
                         }
                         // try to tack on a new word
                         let new_length = l + w.len() + if first { 0 } else { 1 };
-                        if new_length > c.width {
-                            words[i].insert(0, w);
+                        if new_length + c.padding_right > c.width {
+                            tuple.1.insert(0, w);
                             break;
                         } else {
                             if first {
@@ -395,7 +548,7 @@ impl Colonnade {
                             l = new_length;
                         }
                     }
-                    // pad phrase out propery in its cell
+                    // pad phrase out properly in its cell
                     if phrase.len() < c.width {
                         let surplus = c.width - phrase.len();
                         match c.alignment {
@@ -416,22 +569,26 @@ impl Colonnade {
                                 }
                             }
                             Alignment::Right => {
-                                for _ in 0..surplus {
+                                for _ in 0..(surplus - c.padding_right) {
                                     line += " "
                                 }
                                 line += &phrase;
+                                for _ in 0..c.padding_right {
+                                    line += " "
+                                }
                             }
                         }
                     } else {
                         line += &phrase;
                     }
                 }
+                pieces.push((left_margin, line));
             }
-            buffer.push(line);
+            buffer.push(pieces);
         }
         if !last_row {
             for _ in 0..self.spaces_between_rows {
-                buffer.push(String::new());
+                buffer.push(vec![(self.blank_line(), String::new())]);
             }
         }
     }
@@ -467,7 +624,13 @@ impl Colonnade {
     /// let lines = colonnade.tabulate(&data)?;
     /// # Ok(()) }
     /// ```
-    pub fn lay_out(&mut self, table: &Vec<Vec<&str>>) -> Result<(), ColonnadeError> {
+    pub fn lay_out<T>(&mut self, table: &Vec<Vec<T>>) -> Result<(), ColonnadeError>
+    where
+        T: ToString,
+    {
+        let owned_table = Colonnade::own_table(table);
+        let ref_table = Colonnade::ref_table(&owned_table);
+        let table = &ref_table;
         // validate table
         for i in 0..table.len() {
             let row = &table[i];
@@ -1096,5 +1259,115 @@ impl Colonnade {
         } else {
             Err(ColonnadeError::OutOfBounds)
         }
+    }
+    pub fn padding_all(&mut self, padding: usize) -> Result<(), ColonnadeError> {
+        for i in 0..self.len() {
+            self.colonnade[i].padding_left = padding;
+            self.colonnade[i].padding_right = padding;
+            self.colonnade[i].padding_top = padding;
+            self.colonnade[i].padding_bottom = padding;
+        }
+        if !self.sufficient_space() {
+            Err(ColonnadeError::InsufficientSpace)
+        } else {
+            Ok(())
+        }
+    }
+    pub fn padding(&mut self, index: usize, padding: usize) -> Result<(), ColonnadeError> {
+        self.colonnade[index].padding_left = padding;
+        self.colonnade[index].padding_right = padding;
+        self.colonnade[index].padding_top = padding;
+        self.colonnade[index].padding_bottom = padding;
+        if !self.sufficient_space() {
+            Err(ColonnadeError::InsufficientSpace)
+        } else {
+            Ok(())
+        }
+    }
+    pub fn padding_horizontal_all(&mut self, padding: usize) -> Result<(), ColonnadeError> {
+        for i in 0..self.len() {
+            self.colonnade[i].padding_left = padding;
+            self.colonnade[i].padding_right = padding;
+        }
+        if !self.sufficient_space() {
+            Err(ColonnadeError::InsufficientSpace)
+        } else {
+            Ok(())
+        }
+    }
+    pub fn padding_horizontal(
+        &mut self,
+        index: usize,
+        padding: usize,
+    ) -> Result<(), ColonnadeError> {
+        self.colonnade[index].padding_left = padding;
+        self.colonnade[index].padding_right = padding;
+        if !self.sufficient_space() {
+            Err(ColonnadeError::InsufficientSpace)
+        } else {
+            Ok(())
+        }
+    }
+    pub fn padding_left_all(&mut self, padding: usize) -> Result<(), ColonnadeError> {
+        for i in 0..self.len() {
+            self.colonnade[i].padding_left = padding;
+        }
+        if !self.sufficient_space() {
+            Err(ColonnadeError::InsufficientSpace)
+        } else {
+            Ok(())
+        }
+    }
+    pub fn padding_left(&mut self, index: usize, padding: usize) -> Result<(), ColonnadeError> {
+        self.colonnade[index].padding_left = padding;
+        if !self.sufficient_space() {
+            Err(ColonnadeError::InsufficientSpace)
+        } else {
+            Ok(())
+        }
+    }
+    pub fn padding_right_all(&mut self, padding: usize) -> Result<(), ColonnadeError> {
+        for i in 0..self.len() {
+            self.colonnade[i].padding_right = padding;
+        }
+        if !self.sufficient_space() {
+            Err(ColonnadeError::InsufficientSpace)
+        } else {
+            Ok(())
+        }
+    }
+    pub fn padding_right(&mut self, index: usize, padding: usize) -> Result<(), ColonnadeError> {
+        self.colonnade[index].padding_right = padding;
+        if !self.sufficient_space() {
+            Err(ColonnadeError::InsufficientSpace)
+        } else {
+            Ok(())
+        }
+    }
+    pub fn padding_vertical_all(&mut self, padding: usize) {
+        for i in 0..self.len() {
+            self.colonnade[i].padding_top = padding;
+            self.colonnade[i].padding_bottom = padding;
+        }
+    }
+    pub fn padding_vertical(&mut self, index: usize, padding: usize) {
+        self.colonnade[index].padding_top = padding;
+        self.colonnade[index].padding_bottom = padding;
+    }
+    pub fn padding_top_all(&mut self, padding: usize) {
+        for i in 0..self.len() {
+            self.colonnade[i].padding_top = padding;
+        }
+    }
+    pub fn padding_top(&mut self, index: usize, padding: usize) {
+        self.colonnade[index].padding_top = padding;
+    }
+    pub fn padding_bottom_all(&mut self, padding: usize) {
+        for i in 0..self.len() {
+            self.colonnade[i].padding_bottom = padding;
+        }
+    }
+    pub fn padding_bottom(&mut self, index: usize, padding: usize) {
+        self.colonnade[index].padding_bottom = padding;
     }
 }
