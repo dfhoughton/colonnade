@@ -35,13 +35,13 @@ fn main() {
     let mut colonnade = Colonnade::new(3, 80).unwrap();
 
     // configure the table a bit
-    colonnade.left_margin_all(4);
-    colonnade.left_margin(0, 8);              // the first column should have a left margin 8 spaces wide
-    colonnade.fixed_width_all(15);            // first we set all the columns to 15 characters wide
-    colonnade.clear_limits(1);                // but then remove this restriction on the central column
-    colonnade.alignment(0, Alignment::Right);
-    colonnade.alignment(1, Alignment::Center);
-    colonnade.alignment(2, Alignment::Left);
+    colonnade.left_margin(4);
+    colonnade.columns[0].left_margin(8);      // the first column should have a left margin 8 spaces wide
+    colonnade.fixed_width(15);                // first we set all the columns to 15 characters wide
+    colonnade.columns[1].clear_limits();      // but then remove this restriction on the central column
+    colonnade.columns[0].alignment(Alignment::Right);
+    colonnade.columns[1].alignment(Alignment::Center);
+    colonnade.columns[2].alignment(Alignment::Left);
     colonnade.spaces_between_rows(1);         // add a blank link between rows
 
     // now print out the table
@@ -72,7 +72,6 @@ If the columns differ in priority, lower priority, higher priority number, colum
 get wrapped first.
 */
 use std::fmt;
-use std::iter;
 
 /// All the things that can go wrong when laying out tabular data.
 #[derive(Debug)]
@@ -109,8 +108,10 @@ pub enum Alignment {
     Center,
 }
 
+/// A struct holding formatting information for a particular column.
 #[derive(Debug, Clone)]
-struct ColumnSpec {
+pub struct Column {
+    index: usize,
     alignment: Alignment,
     left_margin: usize,
     width: usize,
@@ -123,9 +124,10 @@ struct ColumnSpec {
     padding_bottom: usize,
 }
 
-impl ColumnSpec {
-    fn default() -> ColumnSpec {
-        ColumnSpec {
+impl Column {
+    fn default(index: usize) -> Column {
+        Column {
+            index: index,
             alignment: Alignment::Left,
             left_margin: 1,
             width: 0, // claimed width
@@ -224,12 +226,357 @@ impl ColumnSpec {
     fn margin(&self) -> String {
         " ".repeat(self.left_margin)
     }
+    /// Assign a particular priority to the column.
+    ///
+    /// Priority determines the order in which columns give up space when the viewport lacks sufficient
+    /// space to display all columns without wrapping. Lower priority columns give up space first.
+    ///
+    /// # Arguments
+    ///
+    /// * `priority` - The column's priority. Lower numbers confer higher priority; 0 is the highest priority.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::Colonnade;
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// // assign all columns the highest priority
+    /// colonnade.priority(0);
+    /// // now demote the last column
+    /// colonnade.columns[3].priority(1);
+    /// # Ok(()) }
+    /// ```
+    pub fn priority(&mut self, priority: usize) {
+        self.priority = priority;
+    }
+    /// Assign the same maximum width to all columns. By default columns have no maximum width.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_width` - The common maximum width.
+    ///
+    /// # Errors
+    ///
+    /// * `ColonnadeError::MinGreaterThanMax` - Assigning a maximum width in conflict with some assigned minimum width.
+    /// * `ColonnadeError::OutOfBounds` - Attemping to assign a maximum width to a column that does not exist.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::Colonnade;
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// // assign the first column a maximum width of 20
+    /// colonnade.columns[0].max_width(20)?;
+    /// # Ok(()) }
+    /// ```
+    pub fn max_width(&mut self, max_width: usize) -> Result<(), ColonnadeError> {
+        if self.min_width.unwrap_or(max_width) > max_width {
+            Err(ColonnadeError::MinGreaterThanMax(self.index))
+        } else {
+            self.max_width = Some(max_width);
+            Ok(())
+        }
+    }
+    /// Assign a particular minimum width to a particular column. By default columns have no minimum width.
+    ///
+    /// # Arguments
+    ///
+    /// * `min_width` - The common minimum width.
+    ///
+    /// # Errors
+    ///
+    /// * `ColonnadeError::MinGreaterThanMax` - Assigning a maximum width in conflict with some assigned minimum width.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::Colonnade;
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// // assign the first column a minimum width of 20
+    /// colonnade.columns[0].min_width(20)?;
+    /// # Ok(()) }
+    /// ```
+    pub fn min_width(&mut self, min_width: usize) -> Result<(), ColonnadeError> {
+        if self.max_width.unwrap_or(min_width) < min_width {
+            return Err(ColonnadeError::MinGreaterThanMax(self.index));
+        }
+        self.width = min_width;
+        self.min_width = Some(min_width);
+        Ok(())
+    }
+    /// Assign a particular maximum and minimum width to a particular column. By default columns have neither a maximum nor a minimum width.
+    ///
+    /// # Arguments
+    ///
+    /// * `width` - The common width.
+    ///
+    /// # Errors
+    ///
+    /// This method is a convenience method which assigns the column in question the same maximum and minimum width. Therefore
+    /// the errors thrown are those thrown by [`max_width`](#method.max_width) and [`min_width`](#method.min_width).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::Colonnade;
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// // assign the first column a width of 20
+    /// colonnade.columns[0].fixed_width(20)?;
+    /// # Ok(()) }
+    /// ```
+    pub fn fixed_width(&mut self, width: usize) -> Result<(), ColonnadeError> {
+        self.min_width = None;
+        self.max_width = None;
+        match self.min_width(width) {
+            Err(e) => return Err(e),
+            Ok(_) => (),
+        }
+        match self.max_width(width) {
+            Err(e) => return Err(e),
+            Ok(_) => (),
+        }
+        Ok(())
+    }
+    /// Remove maximum or minimum column widths from a particular column.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::Colonnade;
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// // initially assign all columns a width of 20
+    /// colonnade.fixed_width(20);
+    /// // but we want the first column to be flexible
+    /// colonnade.columns[0].clear_limits();
+    /// # Ok(()) }
+    /// ```
+    pub fn clear_limits(&mut self) {
+        self.max_width = None;
+        self.min_width = None;
+    }
+    /// Assign a particular column a particular alignment. The default alignment is left.
+    ///
+    /// # Arguments
+    ///
+    /// * `alignment` - The desired alignment.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// // the first column should be right-aligned (it's numeric)
+    /// colonnade.columns[0].alignment(Alignment::Right);
+    /// # Ok(()) }
+    /// ```
+    pub fn alignment(&mut self, alignment: Alignment) {
+        self.alignment = alignment;
+    }
+    /// Assign a particular column a particular left margin. The left margin is a number of blank spaces
+    /// before the content of the column. By default the first column has a left margin of 0
+    /// and the other columns have a left margin of 1.
+    ///
+    /// # Arguments
+    ///
+    /// * `left_margin` - The width in blank spaces of the desired margin.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// colonnade.columns[0].left_margin(2);
+    /// # Ok(()) }
+    /// ```
+    pub fn left_margin(&mut self, left_margin: usize) {
+        self.left_margin = left_margin;
+    }
+    /// Assign a particular column a particular padding.
+    ///
+    /// See [`Colonnade::padding`](struct.Colonade.html#method.padding).
+    ///
+    /// # Arguments
+    ///
+    /// * `padding` - The width in blank spaces/lines of the desired padding.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// colonnade.columns[0].padding(1);
+    /// # Ok(()) }
+    /// ```
+    pub fn padding(&mut self, padding: usize) {
+        self.padding_left = padding;
+        self.padding_right = padding;
+        self.padding_top = padding;
+        self.padding_bottom = padding;
+    }
+    /// Assign a particular column a particular horizontal padding -- space before and after the column's text.
+    ///
+    /// See [`Colonnade::padding`](struct.Colonade.html#method.padding).
+    ///
+    /// # Arguments
+    ///
+    /// * `padding` - The width in blank spaces/lines of the desired padding.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// colonnade.columns[0].padding_horizontal(1);
+    /// # Ok(()) }
+    /// ```
+    pub fn padding_horizontal(&mut self, padding: usize) {
+        self.padding_left = padding;
+        self.padding_right = padding;
+    }
+    /// Assign a particular column a particular left padding -- space before the column's text.
+    ///
+    /// See [`Colonnade::padding`](struct.Colonade.html#method.padding).
+    ///
+    /// # Arguments
+    ///
+    /// * `padding` - The width in blank spaces/lines of the desired padding.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// colonnade.columns[0].padding_left(1);
+    /// # Ok(()) }
+    /// ```
+    pub fn padding_left(&mut self, padding: usize) {
+        self.padding_left = padding;
+    }
+    /// Assign a particular column a particular right padding -- space after the column's text.
+    ///
+    /// See [`Colonnade::padding`](struct.Colonade.html#method.padding).
+    ///
+    /// # Arguments
+    ///
+    /// * `padding` - The width in blank spaces/lines of the desired padding.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// colonnade.columns[0].padding_right(1);
+    /// # Ok(()) }
+    /// ```
+    pub fn padding_right(&mut self, padding: usize) {
+        self.padding_right = padding;
+    }
+    /// Assign a particular column a particular vertical padding -- blank lines before and after the column's text.
+    ///
+    /// See [`Colonnade::padding`](struct.Colonade.html#method.padding).
+    ///
+    /// # Arguments
+    ///
+    /// * `padding` - The width in blank spaces/lines of the desired padding.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// colonnade.columns[0].padding_vertical(1);
+    /// # Ok(()) }
+    /// ```
+    pub fn padding_vertical(&mut self, padding: usize) {
+        self.padding_top = padding;
+        self.padding_bottom = padding;
+    }
+    /// Assign a particular column a particular top padding -- blank lines before the column's text.
+    ///
+    /// See [`Colonnade::padding`](struct.Colonade.html#method.padding).
+    ///
+    /// # Arguments
+    ///
+    /// * `padding` - The width in blank spaces/lines of the desired padding.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// colonnade.columns[0].padding_top(1);
+    /// # Ok(()) }
+    /// ```
+    pub fn padding_top(&mut self, padding: usize) {
+        self.padding_top = padding;
+    }
+    /// Assign a particular column a particular bottom padding -- blank lines after the column's text.
+    ///
+    /// See [`Colonnade::padding`](struct.Colonade.html#method.padding).
+    ///
+    /// # Arguments
+    ///
+    /// * `padding` - The width in blank spaces/lines of the desired padding.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(4, 100)?;
+    /// colonnade.columns[0].padding_bottom(1);
+    /// # Ok(()) }
+    /// ```
+    pub fn padding_bottom(&mut self, padding: usize) {
+            self.padding_bottom = padding;
+    }
 }
 
 /// A struct holding formatting information. This is the object which tabulates data.
 #[derive(Debug, Clone)]
 pub struct Colonnade {
-    colonnade: Vec<ColumnSpec>,
+    pub columns: Vec<Column>,
     width: usize,
     spaces_between_rows: usize,
     adjusted: bool,
@@ -265,11 +612,10 @@ impl Colonnade {
         if columns == 0 {
             return Err(ColonnadeError::InsufficientColumns);
         }
-        let mut colonnade: Vec<ColumnSpec> =
-            iter::repeat(ColumnSpec::default()).take(columns).collect();
-        colonnade[0].left_margin = 0;
+        let mut columns: Vec<Column> = (0..columns).map(|i| Column::default(i)).collect();
+        columns[0].left_margin = 0;
         let spec = Colonnade {
-            colonnade,
+            columns,
             width,
             spaces_between_rows: 0,
             adjusted: false,
@@ -281,7 +627,7 @@ impl Colonnade {
     }
     // the absolute minimal space that might fit this table assuming some data in every column
     fn minimal_width(&self) -> usize {
-        self.colonnade
+        self.columns
             .iter()
             .fold(0, |acc, v| acc + v.left_margin + v.min_width.unwrap_or(1)) // assume each column requires at least one character
     }
@@ -290,9 +636,7 @@ impl Colonnade {
     }
     // the amount of space required to display the data given the current column specs
     fn required_width(&self) -> usize {
-        self.colonnade
-            .iter()
-            .fold(0, |acc, v| acc + v.outer_width())
+        self.columns.iter().fold(0, |acc, v| acc + v.outer_width())
     }
     // make a blank line as wide as the table
     fn blank_line(&self) -> String {
@@ -300,7 +644,7 @@ impl Colonnade {
     }
     fn maximum_vertical_padding(&self) -> usize {
         let mut p = 0;
-        for c in &self.colonnade {
+        for c in &self.columns {
             let p2 = c.vertical_padding();
             if p2 > p {
                 p = p2;
@@ -309,7 +653,7 @@ impl Colonnade {
         p
     }
     fn len(&self) -> usize {
-        self.colonnade.len()
+        self.columns.len()
     }
     // determine the characters required to represent s after whitespace normalization
     fn width_after_normalization(s: &str) -> usize {
@@ -324,11 +668,7 @@ impl Colonnade {
     }
     // returns priorites sorted lowest to highest
     fn priorities(&self) -> Vec<usize> {
-        let mut v = self
-            .colonnade
-            .iter()
-            .map(|c| c.priority)
-            .collect::<Vec<_>>();
+        let mut v = self.columns.iter().map(|c| c.priority).collect::<Vec<_>>();
         v.sort_unstable();
         v.dedup();
         v.reverse();
@@ -408,16 +748,16 @@ impl Colonnade {
     /// let mut colonnade = Colonnade::new(3, 80).unwrap();
 
     /// // configure the table a bit
-    /// colonnade.left_margin_all(4);
-    /// colonnade.left_margin(0, 8);
-    /// colonnade.fixed_width_all(15);
-    /// colonnade.clear_limits(1);
-    /// colonnade.alignment(0, Alignment::Right);
-    /// colonnade.alignment(1, Alignment::Center);
-    /// colonnade.alignment(2, Alignment::Left);
+    /// colonnade.left_margin(4);
+    /// colonnade.columns[0].left_margin(8);
+    /// colonnade.fixed_width(15);
+    /// colonnade.columns[1].clear_limits();
+    /// colonnade.columns[0].alignment(Alignment::Right);
+    /// colonnade.columns[1].alignment(Alignment::Center);
+    /// colonnade.columns[2].alignment(Alignment::Left);
     /// colonnade.spaces_between_rows(1);
     /// // if the text is in colored cells, you will probably want some padding
-    /// colonnade.padding_all(1);
+    /// colonnade.padding(1);
     ///
     /// // now print out the table
     /// let mut t = term::stdout().unwrap();
@@ -516,9 +856,9 @@ impl Colonnade {
             .enumerate()
             .map(|(i, w)| {
                 (
-                    self.colonnade[i].padding_top,
+                    self.columns[i].padding_top,
                     w.trim().split_whitespace().collect(),
-                    self.colonnade[i].padding_bottom,
+                    self.columns[i].padding_bottom,
                 )
             })
             .collect();
@@ -526,7 +866,7 @@ impl Colonnade {
         if words.iter().all(|(_, sentence, _)| sentence.is_empty()) {
             for _ in 0..maximum_vertical_padding {
                 buffer.push(
-                    self.colonnade
+                    self.columns
                         .iter()
                         .map(|c| (c.margin(), c.blank_line()))
                         .collect(),
@@ -545,7 +885,7 @@ impl Colonnade {
             .all(|(pt, sentence, pb)| pb == &0 && pt == &0 && sentence.is_empty())
         {
             let mut pieces = vec![];
-            for (i, c) in self.colonnade.iter().enumerate() {
+            for (i, c) in self.columns.iter().enumerate() {
                 let left_margin = c.margin();
                 let mut line = String::new();
                 let mut tuple = &mut words[i];
@@ -690,6 +1030,9 @@ impl Colonnade {
                 ));
             }
         }
+        if !self.sufficient_space() {
+            return Err(ColonnadeError::InsufficientSpace);
+        }
         let owned_table = Colonnade::own_table(table);
         let ref_table = Colonnade::ref_table(&owned_table);
         let table = &ref_table;
@@ -697,10 +1040,10 @@ impl Colonnade {
         for i in 0..table.len() {
             for c in 0..self.len() {
                 let m = Colonnade::width_after_normalization(&table[i][c])
-                    + self.colonnade[i].horizontal_padding();
-                if m >= self.colonnade[c].width {
+                    + self.columns[i].horizontal_padding();
+                if m >= self.columns[c].width {
                     // = to force initial expansion to min width
-                    self.colonnade[c].expand(m);
+                    self.columns[c].expand(m);
                 }
             }
         }
@@ -712,13 +1055,13 @@ impl Colonnade {
         // try shrinking columns to their longest word by order of priority
         for p in self.priorities() {
             for c in 0..self.len() {
-                if self.colonnade[c].priority == p && self.colonnade[c].is_shrinkable() {
+                if self.columns[c].priority == p && self.columns[c].is_shrinkable() {
                     modified_columns.push(c);
-                    self.colonnade[c].shrink(0);
+                    self.columns[c].shrink(0);
                     for r in 0..table.len() {
-                        let m = longest_word(&table[r][c]) + self.colonnade[c].horizontal_padding();
-                        if m > self.colonnade[c].width {
-                            self.colonnade[c].expand(m);
+                        let m = longest_word(&table[r][c]) + self.columns[c].horizontal_padding();
+                        if m > self.columns[c].width {
+                            self.columns[c].expand(m);
                         }
                     }
                 }
@@ -729,13 +1072,13 @@ impl Colonnade {
         }
         if self.required_width() > self.width {
             // forcibly truncate long columns
-            let mut truncatable_columns = self.colonnade.iter().enumerate().collect::<Vec<_>>();
+            let mut truncatable_columns = self.columns.iter().enumerate().collect::<Vec<_>>();
             truncatable_columns.retain(|(_, c)| c.is_shrinkable());
             let truncatable_columns: Vec<usize> =
                 truncatable_columns.iter().map(|(i, _)| *i).collect();
             let mut priorities: Vec<usize> = truncatable_columns
                 .iter()
-                .map(|&i| self.colonnade[i].priority)
+                .map(|&i| self.columns[i].priority)
                 .collect();
             priorities.sort_unstable();
             priorities.dedup();
@@ -743,7 +1086,7 @@ impl Colonnade {
             'outer: for p in priorities {
                 let mut shrinkables: Vec<&usize> = truncatable_columns
                     .iter()
-                    .filter(|&&i| self.colonnade[i].priority == p)
+                    .filter(|&&i| self.columns[i].priority == p)
                     .collect();
                 loop {
                     let excess = self.required_width() - self.width;
@@ -751,10 +1094,10 @@ impl Colonnade {
                         break 'outer;
                     }
                     if excess <= shrinkables.len() {
-                        shrinkables.retain(|&&i| self.colonnade[i].shrink_by(1));
+                        shrinkables.retain(|&&i| self.columns[i].shrink_by(1));
                     } else {
                         let share = excess / shrinkables.len();
-                        shrinkables.retain(|&&i| self.colonnade[i].shrink_by(share));
+                        shrinkables.retain(|&&i| self.columns[i].shrink_by(share));
                     }
                     if shrinkables.is_empty() {
                         break;
@@ -766,26 +1109,26 @@ impl Colonnade {
             }
         } else if self.required_width() < self.width {
             // try to give back surplus space
-            modified_columns.retain(|&i| self.colonnade[i].is_expandable());
+            modified_columns.retain(|&i| self.columns[i].is_expandable());
             if !modified_columns.is_empty() {
                 while self.required_width() < self.width {
                     // find highest priority among modified columns
                     if let Some(priority) = modified_columns
                         .iter()
-                        .map(|&i| self.colonnade[i].priority)
+                        .map(|&i| self.columns[i].priority)
                         .min()
                     {
                         // there are still some modified columns we haven't restored any space to
                         let mut winners: Vec<&usize> = modified_columns
                             .iter()
-                            .filter(|&&i| self.colonnade[i].priority == priority)
+                            .filter(|&&i| self.columns[i].priority == priority)
                             .collect();
                         let surplus = self.width - self.required_width();
                         if surplus <= winners.len() {
                             // give one column back to as many of the winners as possible and call it a day
                             // we will necessarily break out of the loop after this
                             for &&i in winners.iter().take(surplus) {
-                                self.colonnade[i].width += 1;
+                                self.columns[i].width += 1;
                             }
                         } else {
                             // give a share back to each winner
@@ -794,27 +1137,27 @@ impl Colonnade {
                                 if surplus == 0 {
                                     break;
                                 }
-                                winners.retain(|&&i| self.colonnade[i].is_expandable());
+                                winners.retain(|&&i| self.columns[i].is_expandable());
                                 if winners.is_empty() {
                                     break;
                                 }
                                 if surplus <= winners.len() {
                                     for &&i in winners.iter().take(surplus) {
-                                        self.colonnade[i].width += 1;
+                                        self.columns[i].width += 1;
                                     }
                                     break;
                                 }
                                 let mut changed = false;
                                 let share = surplus / winners.len();
                                 for &&i in winners.iter() {
-                                    let change = self.colonnade[i].expand_by(share);
+                                    let change = self.columns[i].expand_by(share);
                                     changed = changed || change;
                                 }
                                 if !changed {
                                     break;
                                 }
                             }
-                            modified_columns.retain(|&i| self.colonnade[i].priority != priority);
+                            modified_columns.retain(|&i| self.columns[i].priority != priority);
                         }
                     } else {
                         break;
@@ -864,50 +1207,14 @@ impl Colonnade {
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
     /// // assign all columns the highest priority
-    /// colonnade.priority_all(0);
+    /// colonnade.priority(0);
     /// // now demote the last column
-    /// colonnade.priority(3, 1);
+    /// colonnade.columns[3].priority(1);
     /// # Ok(()) }
     /// ```
-    pub fn priority_all(&mut self, priority: usize) {
+    pub fn priority(&mut self, priority: usize) {
         for i in 0..self.len() {
-            self.colonnade[i].priority = priority;
-        }
-    }
-    /// Assign a particular priority to a particular column.
-    ///
-    /// Priority determines the order in which columns give up space when the viewport lacks sufficient
-    /// space to display all columns without wrapping. Lower priority columns give up space first.
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - Which column to which you wish to assign priority.
-    /// * `priority` - The column's priority. Lower numbers confer higher priority; 0 is the highest priority.
-    ///
-    /// # Error
-    ///
-    /// * `ColonnadeError::OutOfBounds` - The index is beyond the bounds of the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::Colonnade;
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// // assign all columns the highest priority
-    /// colonnade.priority_all(0);
-    /// // now demote the last column
-    /// colonnade.priority(3, 1)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn priority(&mut self, index: usize, priority: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].priority = priority;
-            Ok(())
-        } else {
-            Err(ColonnadeError::OutOfBounds)
+            self.columns[i].priority = priority;
         }
     }
     /// Assign the same maximum width to all columns. By default columns have no maximum width.
@@ -929,56 +1236,18 @@ impl Colonnade {
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
     /// // assign all columns a maximum width of 20
-    /// colonnade.max_width_all(20)?;
+    /// colonnade.max_width(20)?;
     /// // at most we will now use only 83 of the characters provided by the viewport (until we mess with margins)
     /// # Ok(()) }
     /// ```
-    pub fn max_width_all(&mut self, max_width: usize) -> Result<(), ColonnadeError> {
+    pub fn max_width(&mut self, max_width: usize) -> Result<(), ColonnadeError> {
         for i in 0..self.len() {
-            if self.colonnade[i].min_width.unwrap_or(0) > max_width {
-                return Err(ColonnadeError::MinGreaterThanMax(i));
+            match self.columns[i].max_width(max_width) {
+                Err(e) => return Err(e),
+                Ok(()) => (),
             }
-            self.colonnade[i].max_width = Some(max_width);
         }
         Ok(())
-    }
-    /// Assign the same maximum width to all columns. By default columns have no maximum width.
-    ///
-    /// # Arguments
-    ///
-    /// * `max_width` - The common maximum width.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::MinGreaterThanMax` - Assigning a maximum width in conflict with some assigned minimum width.
-    /// * `ColonnadeError::OutOfBounds` - Attemping to assign a maximum width to a column that does not exist.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::Colonnade;
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// // assign the first column a maximum width of 20
-    /// colonnade.max_width(0, 20)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn max_width(&mut self, index: usize, max_width: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            if self.colonnade[index].min_width.unwrap_or(max_width) > max_width {
-                Err(ColonnadeError::MinGreaterThanMax(index))
-            } else {
-                self.colonnade[index].max_width = Some(max_width);
-                Ok(())
-            }
-        } else {
-            if self.colonnade[index].min_width.unwrap_or(0) > max_width {
-                return Err(ColonnadeError::MinGreaterThanMax(index));
-            }
-            Err(ColonnadeError::OutOfBounds)
-        }
     }
     /// Assign the same minimum width to all columns. By default columns have no minimum width.
     ///
@@ -1000,63 +1269,21 @@ impl Colonnade {
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
     /// // assign all columns a minimum width of 20
-    /// colonnade.min_width_all(20)?;
+    /// colonnade.min_width(20)?;
     /// // we will now use at least 83 of the characters provided by the viewport (until we mess with margins)
     /// # Ok(()) }
     /// ```
-    pub fn min_width_all(&mut self, min_width: usize) -> Result<(), ColonnadeError> {
+    pub fn min_width(&mut self, min_width: usize) -> Result<(), ColonnadeError> {
         for i in 0..self.len() {
-            if self.colonnade[i].max_width.unwrap_or(min_width) < min_width {
-                return Err(ColonnadeError::MinGreaterThanMax(i));
+            match self.columns[i].min_width(min_width) {
+                Err(e) => return Err(e),
+                Ok(()) => (),
             }
-            self.colonnade[i].width = min_width;
-            self.colonnade[i].min_width = Some(min_width);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
         } else {
             Ok(())
-        }
-    }
-    /// Assign a particular minimum width to a particular column. By default columns have no minimum width.
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to which we wish to assign a minimum width.
-    /// * `min_width` - The common minimum width.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::MinGreaterThanMax` - Assigning a maximum width in conflict with some assigned minimum width.
-    /// * `ColonnadeError::InsufficientSpace` - Assigning this minimum width means the columns require more space than the viewport provides.
-    /// * `ColonnadeError::OutOfBounds` - The index is outside the columns in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::Colonnade;
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// // assign the first column a minimum width of 20
-    /// colonnade.min_width(0, 20)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn min_width(&mut self, index: usize, min_width: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            if self.colonnade[index].max_width.unwrap_or(min_width) < min_width {
-                return Err(ColonnadeError::MinGreaterThanMax(index));
-            }
-            self.colonnade[index].width = min_width;
-            self.colonnade[index].min_width = Some(min_width);
-            if !self.sufficient_space() {
-                Err(ColonnadeError::InsufficientSpace)
-            } else {
-                Ok(())
-            }
-        } else {
-            Err(ColonnadeError::OutOfBounds)
         }
     }
     /// Assign the same maximum and minimum width to all columns. By default columns have neither a maximum nor a minimum width.
@@ -1068,46 +1295,6 @@ impl Colonnade {
     /// # Errors
     ///
     /// This method is a convenience method which assigns all columns the same maximum and minimum width. Therefore
-    /// the errors thrown are those thrown by [`max_width_all`](#method.max_width_all) and [`min_width_all`](#method.min_width_all).
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::Colonnade;
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// // assign all columns a width of 20
-    /// colonnade.fixed_width_all(20)?;
-    /// // we will now use at exactly 83 of the characters provided by the viewport (until we mess with margins)
-    /// # Ok(()) }
-    /// ```
-    pub fn fixed_width_all(&mut self, width: usize) -> Result<(), ColonnadeError> {
-        for i in 0..self.len() {
-            self.colonnade[i].min_width = None;
-            self.colonnade[i].max_width = None;
-        }
-        match self.min_width_all(width) {
-            Err(e) => return Err(e),
-            Ok(_) => (),
-        }
-        match self.max_width_all(width) {
-            Err(e) => return Err(e),
-            Ok(_) => (),
-        }
-        Ok(())
-    }
-    /// Assign a particular maximum and minimum width to a particular column. By default columns have neither a maximum nor a minimum width.
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to configure.
-    /// * `width` - The common width.
-    ///
-    /// # Errors
-    ///
-    /// This method is a convenience method which assigns the column in question the same maximum and minimum width. Therefore
     /// the errors thrown are those thrown by [`max_width`](#method.max_width) and [`min_width`](#method.min_width).
     ///
     /// # Example
@@ -1118,20 +1305,17 @@ impl Colonnade {
     /// # use std::error::Error;
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// // assign the first column a width of 20
-    /// colonnade.fixed_width(0, 20)?;
+    /// // assign all columns a width of 20
+    /// colonnade.fixed_width(20)?;
+    /// // we will now use at exactly 83 of the characters provided by the viewport (until we mess with margins)
     /// # Ok(()) }
     /// ```
-    pub fn fixed_width(&mut self, index: usize, min_width: usize) -> Result<(), ColonnadeError> {
-        self.colonnade[index].min_width = None;
-        self.colonnade[index].max_width = None;
-        match self.min_width(index, min_width) {
-            Err(e) => return Err(e),
-            Ok(_) => (),
-        }
-        match self.max_width(index, min_width) {
-            Err(e) => return Err(e),
-            Ok(_) => (),
+    pub fn fixed_width(&mut self, width: usize) -> Result<(), ColonnadeError> {
+        for i in 0..self.len() {
+            match self.columns[i].fixed_width(width) {
+                Err(e) => return Err(e),
+                Ok(()) => (),
+            }
         }
         Ok(())
     }
@@ -1146,44 +1330,14 @@ impl Colonnade {
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
     /// // assign all columns a width of 20
-    /// colonnade.fixed_width_all(20)?;
+    /// colonnade.fixed_width(20)?;
     /// // later ...
-    /// colonnade.clear_limits_all();
+    /// colonnade.clear_limits();
     /// # Ok(()) }
     /// ```
-    pub fn clear_limits_all(&mut self) {
+    pub fn clear_limits(&mut self) {
         for i in 0..self.len() {
-            self.colonnade[i].max_width = None;
-            self.colonnade[i].min_width = None;
-        }
-    }
-    /// Remove maximum or minimum column widths from a particular column.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::OutOfBounds` - The column specified does not exist in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::Colonnade;
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// // initially assign all columns a width of 20
-    /// colonnade.fixed_width_all(20);
-    /// // but we want the first column to be flexible
-    /// colonnade.clear_limits(0)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn clear_limits(&mut self, index: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].max_width = None;
-            self.colonnade[index].min_width = None;
-            Ok(())
-        } else {
-            Err(ColonnadeError::OutOfBounds)
+            self.columns[i].clear_limits();
         }
     }
     /// Assign all columns the same alignment. The default alignment is left.
@@ -1201,43 +1355,12 @@ impl Colonnade {
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
     /// // all columns should be right-aligned (they're numeric)
-    /// colonnade.alignment_all(Alignment::Right);
+    /// colonnade.alignment(Alignment::Right);
     /// # Ok(()) }
     /// ```
-    pub fn alignment_all(&mut self, alignment: Alignment) {
+    pub fn alignment(&mut self, alignment: Alignment) {
         for i in 0..self.len() {
-            self.colonnade[i].alignment = alignment.clone();
-        }
-    }
-    /// Assign a particular column a particular alignment. The default alignment is left.
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to modify.
-    /// * `alignment` - The desired alignment.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::OutOfBounds` - The column specified does not exist in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::{Alignment,Colonnade};
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// // the first column should be right-aligned (it's numeric)
-    /// colonnade.alignment(0, Alignment::Right)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn alignment(&mut self, index: usize, alignment: Alignment) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].alignment = alignment;
-            Ok(())
-        } else {
-            Err(ColonnadeError::OutOfBounds)
+            self.columns[i].alignment(alignment.clone());
         }
     }
     /// Assign all columns the same left margin. The left margin is a number of blank spaces
@@ -1260,54 +1383,17 @@ impl Colonnade {
     /// # use std::error::Error;
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.left_margin_all(2)?;
+    /// colonnade.left_margin(2)?;
     /// # Ok(()) }
     /// ```
-    pub fn left_margin_all(&mut self, left_margin: usize) -> Result<(), ColonnadeError> {
+    pub fn left_margin(&mut self, left_margin: usize) -> Result<(), ColonnadeError> {
         for i in 0..self.len() {
-            self.colonnade[i].left_margin = left_margin;
+            self.columns[i].left_margin(left_margin);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
         } else {
             Ok(())
-        }
-    }
-    /// Assign a particular column a particular left margin. The left margin is a number of blank spaces
-    /// before the content of the column. By default the first column has a left margin of 0
-    /// and the other columns have a left margin of 1.
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to configure.
-    /// * `left_margin` - The width in blank spaces of the desired margin.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::InsufficientSpace` - This margin will require more space than is available in the viewport.
-    /// * `ColonnadeError::OutOfBounds` - The column specified does not exist in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::{Alignment,Colonnade};
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.left_margin(0, 2)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn left_margin(&mut self, index: usize, left_margin: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].left_margin = left_margin;
-            if !self.sufficient_space() {
-                Err(ColonnadeError::InsufficientSpace)
-            } else {
-                Ok(())
-            }
-        } else {
-            Err(ColonnadeError::OutOfBounds)
         }
     }
     /// Assign all columns the same padding. The padding is a number of blank spaces
@@ -1332,65 +1418,22 @@ impl Colonnade {
     /// # use std::error::Error;
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_all(1)?;
+    /// colonnade.padding(1)?;
     /// # Ok(()) }
     /// ```
-    pub fn padding_all(&mut self, padding: usize) -> Result<(), ColonnadeError> {
+    pub fn padding(&mut self, padding: usize) -> Result<(), ColonnadeError> {
         for i in 0..self.len() {
-            self.colonnade[i].padding_left = padding;
-            self.colonnade[i].padding_right = padding;
-            self.colonnade[i].padding_top = padding;
-            self.colonnade[i].padding_bottom = padding;
+            self.columns[i].padding(padding);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
         } else {
             Ok(())
-        }
-    }
-    /// Assign a particular column a particular padding.
-    ///
-    /// See [`padding_all`](#method.padding_all).
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to configure.
-    /// * `padding` - The width in blank spaces/lines of the desired padding.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::InsufficientSpace` - This margin will require more space than is available in the viewport.
-    /// * `ColonnadeError::OutOfBounds` - The column specified does not exist in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::{Alignment,Colonnade};
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding(0, 1)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn padding(&mut self, index: usize, padding: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].padding_left = padding;
-            self.colonnade[index].padding_right = padding;
-            self.colonnade[index].padding_top = padding;
-            self.colonnade[index].padding_bottom = padding;
-            if !self.sufficient_space() {
-                Err(ColonnadeError::InsufficientSpace)
-            } else {
-                Ok(())
-            }
-        } else {
-            Err(ColonnadeError::OutOfBounds)
         }
     }
     /// Assign all columns the same horizontal padding -- space before and after the column's text.
     ///
-    /// See [`padding_all`](#method.padding_all).
+    /// See [`padding`](#method.padding).
     ///
     /// # Arguments
     ///
@@ -1408,65 +1451,22 @@ impl Colonnade {
     /// # use std::error::Error;
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_horizontal_all(1)?;
+    /// colonnade.padding_horizontal(1)?;
     /// # Ok(()) }
     /// ```
-    pub fn padding_horizontal_all(&mut self, padding: usize) -> Result<(), ColonnadeError> {
+    pub fn padding_horizontal(&mut self, padding: usize) -> Result<(), ColonnadeError> {
         for i in 0..self.len() {
-            self.colonnade[i].padding_left = padding;
-            self.colonnade[i].padding_right = padding;
+            self.columns[i].padding_horizontal(padding);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
         } else {
             Ok(())
-        }
-    }
-    /// Assign a particular column a particular horizontal padding -- space before and after the column's text.
-    ///
-    /// See [`padding_all`](#method.padding_all).
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to configure.
-    /// * `padding` - The width in blank spaces/lines of the desired padding.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::InsufficientSpace` - This margin will require more space than is available in the viewport.
-    /// * `ColonnadeError::OutOfBounds` - The column specified does not exist in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::{Alignment,Colonnade};
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_horizontal(0, 1)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn padding_horizontal(
-        &mut self,
-        index: usize,
-        padding: usize,
-    ) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].padding_left = padding;
-            self.colonnade[index].padding_right = padding;
-            if !self.sufficient_space() {
-                Err(ColonnadeError::InsufficientSpace)
-            } else {
-                Ok(())
-            }
-        } else {
-            Err(ColonnadeError::OutOfBounds)
         }
     }
     /// Assign all columns the same left padding -- space before the column's text.
     ///
-    /// See [`padding_all`](#method.padding_all).
+    /// See [`padding`](#method.padding).
     ///
     /// # Arguments
     ///
@@ -1484,59 +1484,22 @@ impl Colonnade {
     /// # use std::error::Error;
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_left_all(1)?;
+    /// colonnade.padding_left(1)?;
     /// # Ok(()) }
     /// ```
-    pub fn padding_left_all(&mut self, padding: usize) -> Result<(), ColonnadeError> {
+    pub fn padding_left(&mut self, padding: usize) -> Result<(), ColonnadeError> {
         for i in 0..self.len() {
-            self.colonnade[i].padding_left = padding;
+            self.columns[i].padding_left(padding);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
         } else {
             Ok(())
-        }
-    }
-    /// Assign a particular column a particular left padding -- space before the column's text.
-    ///
-    /// See [`padding_all`](#method.padding_all).
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to configure.
-    /// * `padding` - The width in blank spaces/lines of the desired padding.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::InsufficientSpace` - This margin will require more space than is available in the viewport.
-    /// * `ColonnadeError::OutOfBounds` - The column specified does not exist in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::{Alignment,Colonnade};
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_left(0, 1)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn padding_left(&mut self, index: usize, padding: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].padding_left = padding;
-            if !self.sufficient_space() {
-                Err(ColonnadeError::InsufficientSpace)
-            } else {
-                Ok(())
-            }
-        } else {
-            Err(ColonnadeError::OutOfBounds)
         }
     }
     /// Assign all columns the same right padding -- space after the column's text.
     ///
-    /// See [`padding_all`](#method.padding_all).
+    /// See [`padding`](#method.padding).
     ///
     /// # Arguments
     ///
@@ -1554,12 +1517,12 @@ impl Colonnade {
     /// # use std::error::Error;
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_right_all(1)?;
+    /// colonnade.padding_right(1)?;
     /// # Ok(()) }
     /// ```
-    pub fn padding_right_all(&mut self, padding: usize) -> Result<(), ColonnadeError> {
+    pub fn padding_right(&mut self, padding: usize) -> Result<(), ColonnadeError> {
         for i in 0..self.len() {
-            self.colonnade[i].padding_right = padding;
+            self.columns[i].padding_right(padding);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
@@ -1567,46 +1530,9 @@ impl Colonnade {
             Ok(())
         }
     }
-    /// Assign a particular column a particular right padding -- space after the column's text.
-    ///
-    /// See [`padding_all`](#method.padding_all).
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to configure.
-    /// * `padding` - The width in blank spaces/lines of the desired padding.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::InsufficientSpace` - This margin will require more space than is available in the viewport.
-    /// * `ColonnadeError::OutOfBounds` - The column specified does not exist in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::{Alignment,Colonnade};
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_right(0, 1)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn padding_right(&mut self, index: usize, padding: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].padding_right = padding;
-            if !self.sufficient_space() {
-                Err(ColonnadeError::InsufficientSpace)
-            } else {
-                Ok(())
-            }
-        } else {
-            Err(ColonnadeError::OutOfBounds)
-        }
-    }
     /// Assign all columns the same vertical padding -- blank lines before and after the column's text.
     ///
-    /// See [`padding_all`](#method.padding_all).
+    /// See [`padding`](#method.padding).
     ///
     /// # Arguments
     ///
@@ -1620,51 +1546,17 @@ impl Colonnade {
     /// # use std::error::Error;
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_vertical_all(1);
+    /// colonnade.padding_vertical(1);
     /// # Ok(()) }
     /// ```
-    pub fn padding_vertical_all(&mut self, padding: usize) {
+    pub fn padding_vertical(&mut self, padding: usize) {
         for i in 0..self.len() {
-            self.colonnade[i].padding_top = padding;
-            self.colonnade[i].padding_bottom = padding;
-        }
-    }
-    /// Assign a particular column a particular vertical padding -- blank lines before and after the column's text.
-    ///
-    /// See [`padding_all`](#method.padding_all).
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to configure.
-    /// * `padding` - The width in blank spaces/lines of the desired padding.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::OutOfBounds` - The column specified does not exist in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::{Alignment,Colonnade};
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_vertical(0, 1)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn padding_vertical(&mut self, index: usize, padding: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].padding_top = padding;
-            self.colonnade[index].padding_bottom = padding;
-            Ok(())
-        } else {
-            Err(ColonnadeError::OutOfBounds)
+            self.columns[i].padding_vertical(padding);
         }
     }
     /// Assign all columns the same top padding -- blank lines before the column's text.
     ///
-    /// See [`padding_all`](#method.padding_all).
+    /// See [`padding`](#method.padding).
     ///
     /// # Arguments
     ///
@@ -1678,49 +1570,17 @@ impl Colonnade {
     /// # use std::error::Error;
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_top_all(1);
+    /// colonnade.padding_top(1);
     /// # Ok(()) }
     /// ```
-    pub fn padding_top_all(&mut self, padding: usize) {
+    pub fn padding_top(&mut self, padding: usize) {
         for i in 0..self.len() {
-            self.colonnade[i].padding_top = padding;
-        }
-    }
-    /// Assign a particular column a particular top padding -- blank lines before the column's text.
-    ///
-    /// See [`padding_all`](#method.padding_all).
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to configure.
-    /// * `padding` - The width in blank spaces/lines of the desired padding.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::OutOfBounds` - The column specified does not exist in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::{Alignment,Colonnade};
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_top(0, 1)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn padding_top(&mut self, index: usize, padding: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].padding_top = padding;
-            Ok(())
-        } else {
-            Err(ColonnadeError::OutOfBounds)
+            self.columns[i].padding_top(padding);
         }
     }
     /// Assign all columns the same bottom padding -- blank lines after the column's text.
     ///
-    /// See [`padding_all`](#method.padding_all).
+    /// See [`padding`](#method.padding).
     ///
     /// # Arguments
     ///
@@ -1734,44 +1594,12 @@ impl Colonnade {
     /// # use std::error::Error;
     /// # fn demo() -> Result<(), Box<dyn Error>> {
     /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_bottom_all(1);
+    /// colonnade.padding_bottom(1);
     /// # Ok(()) }
     /// ```
-    pub fn padding_bottom_all(&mut self, padding: usize) {
+    pub fn padding_bottom(&mut self, padding: usize) {
         for i in 0..self.len() {
-            self.colonnade[i].padding_bottom = padding;
-        }
-    }
-    /// Assign a particular column a particular bottom padding -- blank lines after the column's text.
-    ///
-    /// See [`padding_all`](#method.padding_all).
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The column to configure.
-    /// * `padding` - The width in blank spaces/lines of the desired padding.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::OutOfBounds` - The column specified does not exist in the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::{Alignment,Colonnade};
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// colonnade.padding_bottom(0, 1)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn padding_bottom(&mut self, index: usize, padding: usize) -> Result<(), ColonnadeError> {
-        if index < self.len() {
-            self.colonnade[index].padding_bottom = padding;
-            Ok(())
-        } else {
-            Err(ColonnadeError::OutOfBounds)
+            self.columns[i].padding_bottom(padding);
         }
     }
 }

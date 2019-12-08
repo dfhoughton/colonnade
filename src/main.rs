@@ -15,13 +15,13 @@ fn main() {
     let mut colonnade = Colonnade::new(3, 80).unwrap(); // 3 columns of text in an 80-character viewport
 
     // configure the table a bit
-    colonnade.left_margin_all(4);
-    colonnade.left_margin(0, 8); // the first column should have a left margin 8 spaces wide
-    colonnade.fixed_width_all(15);
-    colonnade.clear_limits(1); // the central column has no fixed size limits
-    colonnade.alignment(0, Alignment::Right);
-    colonnade.alignment(1, Alignment::Center);
-    colonnade.alignment(2, Alignment::Left);
+    colonnade.left_margin(4);
+    colonnade.columns[0].left_margin(8); // the first column should have a left margin 8 spaces wide
+    colonnade.fixed_width(15);
+    colonnade.columns[1].clear_limits(); // the central column has no fixed size limits
+    colonnade.columns[0].alignment(Alignment::Right);
+    colonnade.columns[1].alignment(Alignment::Center);
+    colonnade.columns[2].alignment(Alignment::Left);
     colonnade.spaces_between_rows(1); // add a blank link between rows
 
     // now print out the table

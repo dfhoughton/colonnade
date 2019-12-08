@@ -22,7 +22,7 @@ fn justification() {
 #[test]
 fn left_justification() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    colonnade.alignment_all(Alignment::Left);
+    colonnade.alignment(Alignment::Left);
     let data = vec![vec![7, 8, 9], vec![10, 11, 12]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
@@ -32,7 +32,7 @@ fn left_justification() {
 #[test]
 fn right_justification() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    colonnade.alignment_all(Alignment::Right);
+    colonnade.alignment(Alignment::Right);
     let data = vec![vec![7, 8, 9], vec![10, 11, 12]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
@@ -42,7 +42,7 @@ fn right_justification() {
 #[test]
 fn center_justification() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    colonnade.alignment_all(Alignment::Center);
+    colonnade.alignment(Alignment::Center);
     let data = vec![vec![7, 8, 9], vec![100, 110, 120]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
@@ -52,9 +52,9 @@ fn center_justification() {
 #[test]
 fn left_center_right() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    colonnade.alignment(0, Alignment::Left).unwrap();
-    colonnade.alignment(1, Alignment::Center).unwrap();
-    colonnade.alignment(2, Alignment::Right).unwrap();
+    colonnade.columns[0].alignment(Alignment::Left);
+    colonnade.columns[1].alignment(Alignment::Center);
+    colonnade.columns[2].alignment(Alignment::Right);
     let data = vec![vec![7, 8, 9], vec![100, 110, 120]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
@@ -64,8 +64,8 @@ fn left_center_right() {
 #[test]
 fn wrap() {
     let mut colonnade = Colonnade::new(3, 10).unwrap();
-    colonnade.left_margin_all(2).unwrap();
-    colonnade.left_margin(0, 0).unwrap();
+    colonnade.left_margin(2).unwrap();
+    colonnade.columns[0].left_margin(0);
     let data = vec![vec!["1 2 3", "4 5 6", "7 8 9"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 3);
@@ -76,8 +76,8 @@ fn wrap() {
 #[test]
 fn wrap2() {
     let mut colonnade = Colonnade::new(3, 13).unwrap();
-    colonnade.left_margin_all(2).unwrap();
-    colonnade.left_margin(0, 0).unwrap();
+    colonnade.left_margin(2).unwrap();
+    colonnade.columns[0].left_margin(0);
     let data = vec![vec!["1 2 3", "4 5 6", "7 8 9"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
@@ -118,7 +118,7 @@ fn too_skinny_to_hyphenate() {
 #[test]
 fn min_width() {
     let mut colonnade = Colonnade::new(2, 10).unwrap();
-    colonnade.min_width(0, 5).unwrap();
+    colonnade.columns[0].min_width(5).unwrap();
     let data = vec![vec!["a", "b"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 1);
@@ -127,7 +127,7 @@ fn min_width() {
 #[test]
 fn max_width() {
     let mut colonnade = Colonnade::new(2, 10).unwrap();
-    colonnade.max_width(0, 5).unwrap();
+    colonnade.columns[0].max_width(5).unwrap();
     let data = vec![vec!["abcdef", "g"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
@@ -137,7 +137,7 @@ fn max_width() {
 #[test]
 fn fixed_width() {
     let mut colonnade = Colonnade::new(2, 11).unwrap();
-    colonnade.fixed_width_all(5).unwrap();
+    colonnade.fixed_width(5).unwrap();
     let data = vec![vec!["abcdef", "g"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
@@ -147,7 +147,7 @@ fn fixed_width() {
 #[test]
 fn priority() {
     let mut colonnade = Colonnade::new(2, 20).unwrap();
-    colonnade.priority(0, 0).unwrap();
+    colonnade.columns[0].priority(0);
     let data = vec![vec!["a bunch of words", "these are some words"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 4);
@@ -160,9 +160,9 @@ fn priority() {
 #[test]
 fn padding() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    colonnade.padding_all(1).unwrap();
+    colonnade.padding(1).unwrap();
     let data = vec![vec![1, 2, 3]];
-    let lines : Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
+    let lines: Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
     assert_eq!(3, lines.len(), "got vertical padding");
     let c = (String::from(""), String::from("   "));
     assert_eq!(c, lines[0][0]);
@@ -185,9 +185,9 @@ fn padding() {
 #[test]
 fn padding_top() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    colonnade.padding_top_all(1);
+    colonnade.padding_top(1);
     let data = vec![vec![1, 2, 3]];
-    let lines : Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
+    let lines: Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
     assert_eq!(2, lines.len(), "got vertical padding");
     let c = (String::from(""), String::from(" "));
     assert_eq!(c, lines[0][0]);
@@ -205,9 +205,9 @@ fn padding_top() {
 #[test]
 fn padding_bottom() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    colonnade.padding_bottom_all(1);
+    colonnade.padding_bottom(1);
     let data = vec![vec![1, 2, 3]];
-    let lines : Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
+    let lines: Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
     assert_eq!(2, lines.len(), "got vertical padding");
     let c = (String::from(""), String::from("1"));
     assert_eq!(c, lines[0][0]);
@@ -225,9 +225,9 @@ fn padding_bottom() {
 #[test]
 fn padding_left() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    colonnade.padding_left_all(1).unwrap();
+    colonnade.padding_left(1).unwrap();
     let data = vec![vec![1, 2, 3]];
-    let lines : Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
+    let lines: Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
     assert_eq!(1, lines.len(), "no vertical padding");
     let c = (String::from(""), String::from(" 1"));
     assert_eq!(c, lines[0][0]);
@@ -240,9 +240,9 @@ fn padding_left() {
 #[test]
 fn padding_right() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    colonnade.padding_right_all(1).unwrap();
+    colonnade.padding_right(1).unwrap();
     let data = vec![vec![1, 2, 3]];
-    let lines : Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
+    let lines: Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
     assert_eq!(1, lines.len(), "no vertical padding");
     let c = (String::from(""), String::from("1 "));
     assert_eq!(c, lines[0][0]);
