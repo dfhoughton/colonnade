@@ -26,7 +26,7 @@ fn main() {
         vec![
             "Colonnade lets you format text in columns.",
             "As you can see, it supports text alignment, viewport width, and column widths.",
-            "It doesn't yet support color codes or other formatting, though that may come.",
+            "If you want to colorize your table, you'll need to use the macerate method.",
         ],
         vec!["", "Two or more rows of columns makes a table.", ""],
     ];
@@ -52,12 +52,12 @@ fn main() {
 ```
 which produces
 ```plain
-         Colonnade lets     As you can see, it supports text     It doesn't yet
-        you format text      alignment, viewport width, and      support color
-            in columns.              column widths.              codes or other
-                                                                 formatting,
-                                                                 though that may
-                                                                 come.
+         Colonnade lets     As you can see, it supports text     If you want to 
+        you format text      alignment, viewport width, and      colorize your  
+            in columns.              column widths.              table, you'll  
+                                                                 need to use the
+                                                                 macerate       
+                                                                 method.        
 
                            Two or more rows of columns makes
                                         a table.
