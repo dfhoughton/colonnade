@@ -52,12 +52,12 @@ fn main() {
 ```
 which produces
 ```plain
-         Colonnade lets     As you can see, it supports text     If you want to 
-        you format text      alignment, viewport width, and      colorize your  
-            in columns.              column widths.              table, you'll  
+         Colonnade lets     As you can see, it supports text     If you want to
+        you format text      alignment, viewport width, and      colorize your
+            in columns.              column widths.              table, you'll
                                                                  need to use the
-                                                                 macerate       
-                                                                 method.        
+                                                                 macerate
+                                                                 method.
 
                            Two or more rows of columns makes
                                         a table.
@@ -138,14 +138,14 @@ impl ColumnSpec {
             padding_bottom: 0,
         }
     }
-    fn horizonal_padding(&self) -> usize {
+    fn horizontal_padding(&self) -> usize {
         self.padding_left + self.padding_right
     }
     fn vertical_padding(&self) -> usize {
         self.padding_top + self.padding_bottom
     }
     fn minimum_width(&self) -> usize {
-        let w1 = self.horizonal_padding();
+        let w1 = self.horizontal_padding();
         let w2 = self.min_width.unwrap_or(w1);
         if w2 > w1 {
             w2
@@ -565,15 +565,17 @@ impl Colonnade {
                     while !tuple.1.is_empty() {
                         let w = tuple.1.remove(0);
                         if first {
-                            if w.len() == c.width {
+                            let wl = w.len() + c.padding_right;
+                            if wl == c.width {
                                 // word fills column
                                 phrase += w;
                                 break;
-                            } else if w.len() > c.width {
+                            } else if wl > c.width {
                                 // word overflows column and we must split it
                                 if c.width > 1 {
-                                    phrase += &w[0..(c.width - 1)];
-                                    tuple.1.insert(0, &w[(c.width - 1)..w.len()]);
+                                    let offset = c.width - 1 - c.padding_right;
+                                    phrase += &w[0..offset];
+                                    tuple.1.insert(0, &w[offset..w.len()]);
                                     phrase += "-";
                                 } else {
                                     phrase += &w[0..1];
@@ -677,9 +679,6 @@ impl Colonnade {
     where
         T: ToString,
     {
-        let owned_table = Colonnade::own_table(table);
-        let ref_table = Colonnade::ref_table(&owned_table);
-        let table = &ref_table;
         // validate table
         for i in 0..table.len() {
             let row = &table[i];
@@ -691,10 +690,14 @@ impl Colonnade {
                 ));
             }
         }
+        let owned_table = Colonnade::own_table(table);
+        let ref_table = Colonnade::ref_table(&owned_table);
+        let table = &ref_table;
         // first try to do it all without splitting
         for i in 0..table.len() {
             for c in 0..self.len() {
-                let m = Colonnade::width_after_normalization(&table[i][c]);
+                let m = Colonnade::width_after_normalization(&table[i][c])
+                    + self.colonnade[i].horizontal_padding();
                 if m >= self.colonnade[c].width {
                     // = to force initial expansion to min width
                     self.colonnade[c].expand(m);
@@ -713,7 +716,7 @@ impl Colonnade {
                     modified_columns.push(c);
                     self.colonnade[c].shrink(0);
                     for r in 0..table.len() {
-                        let m = longest_word(&table[r][c]);
+                        let m = longest_word(&table[r][c]) + self.colonnade[c].horizontal_padding();
                         if m > self.colonnade[c].width {
                             self.colonnade[c].expand(m);
                         }
