@@ -1,6 +1,6 @@
 [package]
 name = "colonnade"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["dfhoughton <dfhoughton@gmail.com>"]
 description= "format tabular data for display"
 homepage = "https://github.com/dfhoughton/colonnade"
@@ -16,3 +16,4 @@ edition = "2018"
 
 [dev-dependencies]
 term = "0"
+ansi_term = "0"

@@ -162,24 +162,24 @@ fn padding() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
     colonnade.padding(1).unwrap();
     let data = vec![vec![1, 2, 3]];
-    let lines: Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
-    assert_eq!(3, lines.len(), "got vertical padding");
+    let lines: Vec<Vec<Vec<(String, String)>>> = colonnade.macerate(&data).unwrap();
+    assert_eq!(3, lines[0].len(), "got vertical padding");
     let c = (String::from(""), String::from("   "));
-    assert_eq!(c, lines[0][0]);
+    assert_eq!(c, lines[0][0][0]);
     let c = (String::from(" "), String::from("   "));
-    assert_eq!(c, lines[0][1]);
-    assert_eq!(c, lines[0][2]);
+    assert_eq!(c, lines[0][0][1]);
+    assert_eq!(c, lines[0][0][2]);
     let c = (String::from(""), String::from(" 1 "));
-    assert_eq!(c, lines[1][0]);
+    assert_eq!(c, lines[0][1][0]);
     let c = (String::from(" "), String::from(" 2 "));
-    assert_eq!(c, lines[1][1]);
+    assert_eq!(c, lines[0][1][1]);
     let c = (String::from(" "), String::from(" 3 "));
-    assert_eq!(c, lines[1][2]);
+    assert_eq!(c, lines[0][1][2]);
     let c = (String::from(""), String::from("   "));
-    assert_eq!(c, lines[2][0]);
+    assert_eq!(c, lines[0][2][0]);
     let c = (String::from(" "), String::from("   "));
-    assert_eq!(c, lines[2][1]);
-    assert_eq!(c, lines[2][2]);
+    assert_eq!(c, lines[0][2][1]);
+    assert_eq!(c, lines[0][2][2]);
 }
 
 #[test]
@@ -187,19 +187,19 @@ fn padding_top() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
     colonnade.padding_top(1);
     let data = vec![vec![1, 2, 3]];
-    let lines: Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
-    assert_eq!(2, lines.len(), "got vertical padding");
+    let lines: Vec<Vec<Vec<(String, String)>>> = colonnade.macerate(&data).unwrap();
+    assert_eq!(2, lines[0].len(), "got vertical padding");
     let c = (String::from(""), String::from(" "));
-    assert_eq!(c, lines[0][0]);
+    assert_eq!(c, lines[0][0][0]);
     let c = (String::from(" "), String::from(" "));
-    assert_eq!(c, lines[0][1]);
-    assert_eq!(c, lines[0][2]);
+    assert_eq!(c, lines[0][0][1]);
+    assert_eq!(c, lines[0][0][2]);
     let c = (String::from(""), String::from("1"));
-    assert_eq!(c, lines[1][0]);
+    assert_eq!(c, lines[0][1][0]);
     let c = (String::from(" "), String::from("2"));
-    assert_eq!(c, lines[1][1]);
+    assert_eq!(c, lines[0][1][1]);
     let c = (String::from(" "), String::from("3"));
-    assert_eq!(c, lines[1][2]);
+    assert_eq!(c, lines[0][1][2]);
 }
 
 #[test]
@@ -207,19 +207,19 @@ fn padding_bottom() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
     colonnade.padding_bottom(1);
     let data = vec![vec![1, 2, 3]];
-    let lines: Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
-    assert_eq!(2, lines.len(), "got vertical padding");
+    let lines: Vec<Vec<Vec<(String, String)>>> = colonnade.macerate(&data).unwrap();
+    assert_eq!(2, lines[0].len(), "got vertical padding");
     let c = (String::from(""), String::from("1"));
-    assert_eq!(c, lines[0][0]);
+    assert_eq!(c, lines[0][0][0]);
     let c = (String::from(" "), String::from("2"));
-    assert_eq!(c, lines[0][1]);
+    assert_eq!(c, lines[0][0][1]);
     let c = (String::from(" "), String::from("3"));
-    assert_eq!(c, lines[0][2]);
+    assert_eq!(c, lines[0][0][2]);
     let c = (String::from(""), String::from(" "));
-    assert_eq!(c, lines[1][0]);
+    assert_eq!(c, lines[0][1][0]);
     let c = (String::from(" "), String::from(" "));
-    assert_eq!(c, lines[1][1]);
-    assert_eq!(c, lines[1][2]);
+    assert_eq!(c, lines[0][1][1]);
+    assert_eq!(c, lines[0][1][2]);
 }
 
 #[test]
@@ -227,14 +227,14 @@ fn padding_left() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
     colonnade.padding_left(1).unwrap();
     let data = vec![vec![1, 2, 3]];
-    let lines: Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
-    assert_eq!(1, lines.len(), "no vertical padding");
+    let lines: Vec<Vec<Vec<(String, String)>>> = colonnade.macerate(&data).unwrap();
+    assert_eq!(1, lines[0].len(), "no vertical padding");
     let c = (String::from(""), String::from(" 1"));
-    assert_eq!(c, lines[0][0]);
+    assert_eq!(c, lines[0][0][0]);
     let c = (String::from(" "), String::from(" 2"));
-    assert_eq!(c, lines[0][1]);
+    assert_eq!(c, lines[0][0][1]);
     let c = (String::from(" "), String::from(" 3"));
-    assert_eq!(c, lines[0][2]);
+    assert_eq!(c, lines[0][0][2]);
 }
 
 #[test]
@@ -242,14 +242,14 @@ fn padding_right() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
     colonnade.padding_right(1).unwrap();
     let data = vec![vec![1, 2, 3]];
-    let lines: Vec<Vec<(String, String)>> = colonnade.macerate(&data).unwrap();
-    assert_eq!(1, lines.len(), "no vertical padding");
+    let lines: Vec<Vec<Vec<(String, String)>>> = colonnade.macerate(&data).unwrap();
+    assert_eq!(1, lines[0].len(), "no vertical padding");
     let c = (String::from(""), String::from("1 "));
-    assert_eq!(c, lines[0][0]);
+    assert_eq!(c, lines[0][0][0]);
     let c = (String::from(" "), String::from("2 "));
-    assert_eq!(c, lines[0][1]);
+    assert_eq!(c, lines[0][0][1]);
     let c = (String::from(" "), String::from("3 "));
-    assert_eq!(c, lines[0][2]);
+    assert_eq!(c, lines[0][0][2]);
 }
 
 #[test]
