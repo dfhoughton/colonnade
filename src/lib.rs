@@ -771,7 +771,7 @@ impl Colonnade {
     /// and knows how much space this data will require.
     pub fn width(&self) -> Option<usize> {
         if self.adjusted() {
-            Some(self.width)
+            Some(self.required_width())
         } else {
             None
         }

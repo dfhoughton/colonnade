@@ -1,5 +1,7 @@
 # Change Log
 
+## 1.1.3
+* fixed another bug
 ## 1.1.2
 * remove undocumented `Colonnade#dump` method
 * added the `Colonnade#width` method
