@@ -1,5 +1,8 @@
 # Change Log
 
+## 1.1.2
+* remove undocumented `Colonnade#dump` method
+* added the `Colonnade#width` method
 ## 1.1.1
 * fixed index out of bounds bug in layout
 ## 1.1.0

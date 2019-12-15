@@ -70,7 +70,7 @@ To control the layout you can specify minimum and maximum column widths and colu
 If the columns differ in priority, lower priority, higher priority number, columns will
 get wrapped first.
 */
-use std::fmt::{self, Display};
+use std::fmt;
 
 /// All the things that can go wrong when laying out tabular data.
 #[derive(Debug)]
@@ -767,6 +767,15 @@ impl Colonnade {
         }
         l
     }
+    /// Returns the width of the colonnade in columns if the colonnade has already laid out data
+    /// and knows how much space this data will require.
+    pub fn width(&self) -> Option<usize> {
+        if self.adjusted() {
+            Some(self.width)
+        } else {
+            None
+        }
+    }
     // returns priorites sorted lowest to highest
     fn priorities(&self) -> Vec<usize> {
         let mut v = self.columns.iter().map(|c| c.priority).collect::<Vec<_>>();
@@ -774,18 +783,6 @@ impl Colonnade {
         v.dedup();
         v.reverse();
         v
-    }
-    pub fn dump<T>(width: Option<usize>, table: &Vec<Vec<T>>) -> Result<(), ColonnadeError>
-    where
-        T: Display,
-    {
-        Colonnade::new(table[0].len(), width.unwrap_or(80))
-            .and_then(|mut colonnade| colonnade.tabulate(table))
-            .map(|lines| {
-                for line in lines {
-                    println!("{}", line);
-                }
-            })
     }
     /// Converts the raw data in `table` into a vector of strings representing the data in tabular form.
     /// Blank lines will be zero-width rather than full-width lines of whitespace.
