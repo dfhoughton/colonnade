@@ -364,3 +364,24 @@ fn reset() {
     assert_eq!(1, lines.len(), "got the right number of lines");
     assert_eq!("1 2 3", lines[0]);
 }
+
+#[test]
+fn wide_char_wrapping() {
+    let mut colonnade = Colonnade::new(1, 1).unwrap();
+    let lines = colonnade.tabulate(&[["ßßß"]]).unwrap();
+    assert_eq!(3, lines.len(), "got the right number of lines");
+    for i in 0..3 {
+        assert_eq!("ß", lines[i]);
+    }
+    colonnade = Colonnade::new(1, 2).unwrap();
+    let lines = colonnade.tabulate(&[["ßßß"]]).unwrap();
+    assert_eq!(2, lines.len(), "got the right number of lines");
+    assert_eq!("ß-", lines[0]);
+    assert_eq!("ßß", lines[1]);
+    colonnade = Colonnade::new(1, 2).unwrap();
+    let lines = colonnade.tabulate(&[["bloß"]]).unwrap();
+    assert_eq!(3, lines.len(), "got the right number of lines");
+    assert_eq!("b-", lines[0]);
+    assert_eq!("l-", lines[1]);
+    assert_eq!("oß", lines[2]);
+}

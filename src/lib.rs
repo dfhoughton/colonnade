@@ -123,7 +123,8 @@ pub struct Column {
     alignment: Alignment,
     vertical_alignment: VerticalAlignment,
     left_margin: usize,
-    width: usize,
+    /// the width of the column excluding any left margin
+    pub width: usize,
     priority: usize,
     min_width: Option<usize>,
     max_width: Option<usize>,
@@ -131,6 +132,8 @@ pub struct Column {
     padding_right: usize,
     padding_top: usize,
     padding_bottom: usize,
+    hyphenate: bool,
+    adjusted: bool,
 }
 
 impl Column {
@@ -148,6 +151,8 @@ impl Column {
             padding_right: 0,
             padding_top: 0,
             padding_bottom: 0,
+            hyphenate: true,
+            adjusted: false,
         }
     }
     fn horizontal_padding(&self) -> usize {
@@ -177,6 +182,12 @@ impl Column {
         } else {
             w
         }
+    }
+    fn inner_width(&self) -> usize {
+        self.width - self.padding_right
+    }
+    fn hyphenating(&self) -> bool {
+        self.hyphenate && self.inner_width() > 1
     }
     fn is_shrinkable(&self) -> bool {
         self.minimum_width() < self.width
@@ -260,6 +271,7 @@ impl Column {
     /// # Ok(()) }
     /// ```
     pub fn priority(&mut self, priority: usize) -> &mut Self {
+        self.adjusted = false;
         self.priority = priority;
         self
     }
@@ -291,6 +303,7 @@ impl Column {
             Err(ColonnadeError::MinGreaterThanMax(self.index))
         } else {
             self.max_width = Some(max_width);
+            self.adjusted = false;
             Ok(self)
         }
     }
@@ -322,6 +335,7 @@ impl Column {
         }
         self.width = min_width;
         self.min_width = Some(min_width);
+        self.adjusted = false;
         Ok(self)
     }
     /// Assign a particular maximum and minimum width to a particular column. By default columns have neither a maximum nor a minimum width.
@@ -379,6 +393,7 @@ impl Column {
     pub fn clear_limits(&mut self) -> &mut Self {
         self.max_width = None;
         self.min_width = None;
+        self.adjusted = false;
         self
     }
     /// Assign a particular column a particular alignment. The default alignment is left.
@@ -446,6 +461,7 @@ impl Column {
     /// ```
     pub fn left_margin(&mut self, left_margin: usize) -> &mut Self {
         self.left_margin = left_margin;
+        self.adjusted = false;
         self
     }
     /// Assign a particular column a particular padding.
@@ -472,6 +488,7 @@ impl Column {
         self.padding_right = padding;
         self.padding_top = padding;
         self.padding_bottom = padding;
+        self.adjusted = false;
         self
     }
     /// Assign a particular column a particular horizontal padding -- space before and after the column's text.
@@ -496,6 +513,7 @@ impl Column {
     pub fn padding_horizontal(&mut self, padding: usize) -> &mut Self {
         self.padding_left = padding;
         self.padding_right = padding;
+        self.adjusted = false;
         self
     }
     /// Assign a particular column a particular left padding -- space before the column's text.
@@ -519,6 +537,7 @@ impl Column {
     /// ```
     pub fn padding_left(&mut self, padding: usize) -> &mut Self {
         self.padding_left = padding;
+        self.adjusted = false;
         self
     }
     /// Assign a particular column a particular right padding -- space after the column's text.
@@ -542,6 +561,7 @@ impl Column {
     /// ```
     pub fn padding_right(&mut self, padding: usize) -> &mut Self {
         self.padding_right = padding;
+        self.adjusted = false;
         self
     }
     /// Assign a particular column a particular vertical padding -- blank lines before and after the column's text.
@@ -614,6 +634,40 @@ impl Column {
         self.padding_bottom = padding;
         self
     }
+    /// Toggle whether words too wide to fit in the column are hyphenated when spit. By
+    /// default this is `true`. If there is only 1 character of available space in a column,
+    /// though, there is never any hyphenation.
+    ///
+    /// # Arguments
+    ///
+    /// * `hyphenate` - Whether to hyphenate when splitting words.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment,Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(1, 3)?;
+    /// colonnade.alignment(Alignment::Right);
+    /// for line in colonnade.tabulate(&[[1234]])? {
+    ///     println!("{}", line);
+    /// }
+    /// // 12-
+    /// //  34
+    /// colonnade.columns[0].hyphenate(false);
+    /// for line in colonnade.tabulate(&[[1234]])? {
+    ///     println!("{}", line);
+    /// }
+    /// // 123
+    /// //   4
+    /// # Ok(()) }
+    /// ```
+    pub fn hyphenate(&mut self, hyphenate: bool) -> &mut Self {
+        self.hyphenate = hyphenate;
+        self
+    }
 }
 
 /// A struct holding formatting information. This is the object which tabulates data.
@@ -622,7 +676,6 @@ pub struct Colonnade {
     pub columns: Vec<Column>,
     width: usize,
     spaces_between_rows: usize,
-    adjusted: bool,
 }
 
 // find the longest sequence of non-whitespace characters in a string
@@ -667,7 +720,6 @@ impl Colonnade {
             columns,
             width,
             spaces_between_rows: 0,
-            adjusted: false,
         };
         if !spec.sufficient_space() {
             return Err(ColonnadeError::InsufficientSpace);
@@ -983,23 +1035,28 @@ impl Colonnade {
                         let mut phrase = " ".repeat(l);
                         let mut first = true;
                         while !tuple.1.is_empty() {
-                            let w = tuple.1.remove(0);
+                            let w = tuple.1.remove(0); // shift off the next word
                             if first {
-                                let wl = w.len() + c.padding_right;
+                                let wl = w.chars().count() + c.padding_right;
                                 if wl == c.width {
                                     // word fills column
                                     phrase += w;
                                     break;
                                 } else if wl > c.width {
                                     // word overflows column and we must split it
-                                    if c.width > 1 {
-                                        let offset = c.width - 1 - c.padding_right;
-                                        phrase += &w[0..offset];
-                                        tuple.1.insert(0, &w[offset..w.len()]);
+                                    let hyphenating = c.hyphenating();
+                                    let mut offset = c.inner_width();
+                                    if hyphenating {
+                                        offset -= 1;
+                                    }
+                                    let mut byte_offset = 0;
+                                    for c in w.chars().take(offset) {
+                                        byte_offset += c.len_utf8();
+                                    }
+                                    phrase += &w[0..byte_offset];
+                                    tuple.1.insert(0, &w[byte_offset..w.len()]); // unshift back the remaining fragment
+                                    if hyphenating {
                                         phrase += "-";
-                                    } else {
-                                        phrase += &w[0..1];
-                                        tuple.1.insert(0, &w[1..w.len()]);
                                     }
                                     break;
                                 }
@@ -1112,6 +1169,9 @@ impl Colonnade {
         buffer.push(current_lines);
     }
     /// Erase column widths established by a previous `tabulate` or `macerate`.
+    /// 
+    /// Note that adjusting any configuration that may affect the horizontal layout of data
+    /// has an equivalent effect, forcing a fresh layout of the columns.
     ///
     /// # Example
     ///
@@ -1138,10 +1198,13 @@ impl Colonnade {
     /// # Ok(()) }
     /// ```
     pub fn reset(&mut self) {
-        self.adjusted = false;
         for i in 0..self.len() {
+            self.columns[i].adjusted = false;
             self.columns[i].width = 0;
         }
+    }
+    fn adjusted(&self) -> bool {
+        self.columns.iter().all(|c| c.adjusted)
     }
     // determine the optimal widths of the columns given the data and the specified constraints
     fn lay_out<T, U, V, W, X>(&mut self, table: T) -> Result<Vec<Vec<String>>, ColonnadeError>
@@ -1153,9 +1216,10 @@ impl Colonnade {
         X: Iterator<Item = W>,
     {
         let owned_table = self.own_table(table);
-        if self.adjusted {
+        if self.adjusted() {
             return Ok(owned_table);
         }
+        self.reset();
         let ref_table = Colonnade::ref_table(&owned_table);
         let table = &ref_table;
         // validate table
@@ -1178,13 +1242,13 @@ impl Colonnade {
                 let m = Colonnade::width_after_normalization(&table[i][c])
                     + self.columns[i].horizontal_padding();
                 if m >= self.columns[c].width {
-                    // = to force initial expansion to min width
+                    // to force initial expansion to min width
                     self.columns[c].expand(m);
                 }
             }
         }
         if self.required_width() <= self.width {
-            self.adjusted = true;
+            self.mark_adjusted();
             return Ok(owned_table);
         }
         let mut modified_columns: Vec<usize> = Vec::with_capacity(self.len());
@@ -1301,8 +1365,13 @@ impl Colonnade {
                 }
             }
         }
-        self.adjusted = true;
+        self.mark_adjusted();
         Ok(owned_table)
+    }
+    fn mark_adjusted(&mut self) {
+        for i in 0..self.len() {
+            self.columns[i].adjusted = true;
+        }
     }
     /// Specify a number of blank lines to insert between table rows.
     ///
@@ -1766,6 +1835,19 @@ impl Colonnade {
     pub fn padding_bottom(&mut self, padding: usize) -> &mut Self {
         for i in 0..self.len() {
             self.columns[i].padding_bottom(padding);
+        }
+        self
+    }
+    /// Toggle the hyphenation of all columns.
+    ///
+    /// See [`Column::hyphenate`](struct.Column.html#method.hyphenate).
+    ///
+    /// # Arguments
+    ///
+    /// * `hyphenate` - Whether long words will be hyphenated when split.
+    pub fn hyphenate(&mut self, hyphenate: bool) -> &mut Self {
+        for i in 0..self.len() {
+            self.columns[i].hyphenate(hyphenate);
         }
         self
     }

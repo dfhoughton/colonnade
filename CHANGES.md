@@ -9,6 +9,9 @@ I figure it's safe to deviate a little from semantic versioning best practices.
 rows added and pieces returned
 * made `lay_out` private and added `reset` method to provide equivalent functionality
 * gave `tabulate` and `macerate` still more flexible signatures
+* allow variable-length rows so long as no row has more columns than the colonnade
+* fix wrapping/hyphenation for wide characters
+* better mark when the configuration is dirty and layout needs to be redone
 ## 1.0.0
 * simpler, more concise API
 * vertical alignment
