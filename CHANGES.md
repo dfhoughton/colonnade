@@ -1,5 +1,7 @@
 # Change Log
 
+## 1.1.1
+* fixed index out of bounds bug in layout
 ## 1.1.0
 This change actually severely breaks the API, but since no one else is using this crate yet
 I figure it's safe to deviate a little from semantic versioning best practices.

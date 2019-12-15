@@ -1240,7 +1240,7 @@ impl Colonnade {
         for i in 0..table.len() {
             for c in 0..self.len() {
                 let m = Colonnade::width_after_normalization(&table[i][c])
-                    + self.columns[i].horizontal_padding();
+                    + self.columns[c].horizontal_padding();
                 if m >= self.columns[c].width {
                     // to force initial expansion to min width
                     self.columns[c].expand(m);

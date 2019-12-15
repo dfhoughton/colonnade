@@ -385,3 +385,21 @@ fn wide_char_wrapping() {
     assert_eq!("l-", lines[1]);
     assert_eq!("oß", lines[2]);
 }
+
+#[test]
+fn regression1() {
+    let attributes = [
+        ["day-length", "8"],
+        ["editor", "/usr/bin/vim"],
+        ["length-pay-period", "7"],
+        ["precision", "2"],
+        ["start-pay-period", "2016 10 3"],
+        ["sunday-begins-week", "true"],
+        ["workdays", "MTWHF"],
+        ["max-width", ""],
+    ];
+    let mut colonnade = Colonnade::new(2, 127).unwrap();
+    colonnade.columns[1].alignment(Alignment::Right).left_margin(2);
+    colonnade.tabulate(&attributes).unwrap();
+    assert!(true, "no panic");
+}
