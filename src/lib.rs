@@ -1104,6 +1104,32 @@ impl Colonnade {
         }
         buffer.push(current_lines);
     }
+    /// Erase column widths established by a previous `tabulate` or `macerate`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # extern crate colonnade;
+    /// # use colonnade::{Alignment, Colonnade};
+    /// # use std::error::Error;
+    /// # fn demo() -> Result<(), Box<dyn Error>> {
+    /// let mut colonnade = Colonnade::new(3, 80)?;
+    /// colonnade.alignment(Alignment::Right);
+    /// for line in colonnade.tabulate(&[[100, 200, 300]])? {
+    ///     println!("{}", line);
+    /// }
+    /// // 100 200 300
+    /// for line in colonnade.tabulate(&[[1, 2, 3]])? {
+    ///     println!("{}", line);
+    /// }
+    /// //   1   2   3
+    /// colonnade.reset();
+    /// for line in colonnade.tabulate(&[[1, 2, 3]])? {
+    ///     println!("{}", line);
+    /// }
+    /// // 1 2 3
+    /// # Ok(()) }
+    /// ```
     pub fn reset(&mut self) {
         self.adjusted = false;
         for i in 0..self.len() {
