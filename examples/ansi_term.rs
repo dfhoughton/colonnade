@@ -10,7 +10,7 @@ fn main() {
     let text = vec![
         vec![
             "Let's try colou?r!",
-            "Put a bunch of text in this cell so it needs to be laid out in multiple lines. Two sentences should do the trick. But let's add a third just in case.",
+            "Put a bunch of text in this cell so it needs to be laid out in multiple lines. Two sentences should do the trick, but let's add a third just in case.",
             "This one is short.",
             "UTF8 bloß.",
         ],

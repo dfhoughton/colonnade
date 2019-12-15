@@ -70,7 +70,7 @@ To control the layout you can specify minimum and maximum column widths and colu
 If the columns differ in priority, lower priority, higher priority number, columns will
 get wrapped first.
 */
-use std::fmt;
+use std::fmt::{self, Display};
 
 /// All the things that can go wrong when laying out tabular data.
 #[derive(Debug)]
@@ -725,7 +725,7 @@ impl Colonnade {
     }
     pub fn dump<T>(width: Option<usize>, table: &Vec<Vec<T>>) -> Result<(), ColonnadeError>
     where
-        T: ToString,
+        T: Display,
     {
         Colonnade::new(table[0].len(), width.unwrap_or(80))
             .and_then(|mut colonnade| colonnade.tabulate(table))
@@ -761,14 +761,16 @@ impl Colonnade {
     /// let lines = colonnade.tabulate(&data)?;
     /// # Ok(()) }
     /// ```
-    pub fn tabulate<T>(&mut self, table: &Vec<Vec<T>>) -> Result<Vec<String>, ColonnadeError>
+    pub fn tabulate<T, U, V, W, X>(&mut self, table: T) -> Result<Vec<String>, ColonnadeError>
     where
-        T: ToString,
+        T: IntoIterator<Item = U, IntoIter = V>,
+        U: IntoIterator<Item = W, IntoIter = X>,
+        V: Iterator<Item = U>,
+        W: ToString,
+        X: Iterator<Item = W>,
     {
-        match self.macerate(table) {
-            Ok(buffer) => Ok(Colonnade::reconstitute_rows(buffer)),
-            Err(e) => Err(e),
-        }
+        self.macerate(table)
+            .and_then(|buffer| Ok(Colonnade::reconstitute_rows(buffer)))
     }
     /// Chew up the text into bits suitable for piecemeal layout.
     ///
@@ -806,21 +808,21 @@ impl Colonnade {
     ///     ],
     ///     vec!["", "Two or more rows of columns makes a table.", ""],
     /// ];
-    /// let mut colonnade = Colonnade::new(3, 80).unwrap();
+    /// let mut colonnade = Colonnade::new(3, 80)?;
     ///
     /// // configure the table a bit
-    /// colonnade.spaces_between_rows(1).left_margin(4).unwrap().fixed_width(15).unwrap();
+    /// colonnade.spaces_between_rows(1).left_margin(4)?.fixed_width(15)?;
     /// colonnade.columns[0].alignment(Alignment::Right).left_margin(8);
     /// colonnade.columns[1].alignment(Alignment::Center).clear_limits();
     /// // if the text is in colored cells, you will probably want some padding
-    /// colonnade.padding(1).unwrap();
+    /// colonnade.padding(1)?;
     /// ///
     /// // now print out the table
     /// let mut t = term::stdout().unwrap();
-    /// for row in colonnade.macerate(&text).unwrap() {
+    /// for row in colonnade.macerate(&text)? {
     ///     for line in row {
     ///         for (i, (margin, text)) in line.iter().enumerate() {
-    ///             write!(t, "{}", margin).unwrap();
+    ///             write!(t, "{}", margin)?;
     ///             let background_color = if i % 2 == 0 {
     ///                 term::color::WHITE
     ///             } else {
@@ -831,47 +833,57 @@ impl Colonnade {
     ///                 2 => term::color::RED,
     ///                 _ => term::color::BLUE,
     ///             };
-    ///             t.bg(background_color).unwrap();
-    ///             t.fg(foreground_color).unwrap();
-    ///             write!(t, "{}", text).unwrap();
-    ///             t.reset().unwrap();
+    ///             t.bg(background_color)?;
+    ///             t.fg(foreground_color)?;
+    ///             write!(t, "{}", text)?;
+    ///             t.reset()?;
     ///         }
     ///         println!();
     ///     }
     /// }
     /// # Ok(()) }
     /// ```
-    pub fn macerate<T>(
+    pub fn macerate<T, U, V, W, X>(
         &mut self,
-        table: &Vec<Vec<T>>,
+        table: T,
     ) -> Result<Vec<Vec<Vec<(String, String)>>>, ColonnadeError>
     where
-        T: ToString,
+        T: IntoIterator<Item = U, IntoIter = V>,
+        U: IntoIterator<Item = W, IntoIter = X>,
+        V: Iterator<Item = U>,
+        W: ToString,
+        X: Iterator<Item = W>,
     {
-        if !self.adjusted {
-            match self.lay_out(table) {
-                Err(e) => return Err(e),
-                Ok(()) => (),
+        self.lay_out(table).and_then(|owned_table| {
+            let ref_table = Colonnade::ref_table(&owned_table);
+            let table = &ref_table;
+            let mut buffer = vec![];
+            let mut p = self.maximum_vertical_padding();
+            if p == 0 {
+                p = 1;
             }
-        }
-        let owned_table = Colonnade::own_table(table);
-        let ref_table = Colonnade::ref_table(&owned_table);
-        let table = &ref_table;
-        let mut buffer = vec![];
-        let mut p = self.maximum_vertical_padding();
-        if p == 0 {
-            p = 1;
-        }
-        for (i, row) in table.iter().enumerate() {
-            self.add_row(&mut buffer, row, i == table.len() - 1, p);
-        }
-        Ok(buffer)
+            for (i, row) in table.iter().enumerate() {
+                self.add_row(&mut buffer, row, i == table.len() - 1, p);
+            }
+            Ok(buffer)
+        })
     }
     // utility function to convert a T table to a String table
-    fn own_table<T: ToString>(table: &Vec<Vec<T>>) -> Vec<Vec<String>> {
+    fn own_table<T, U, V, W, X>(table: T) -> Vec<Vec<String>>
+    where
+        T: IntoIterator<Item = U, IntoIter = V>,
+        U: IntoIterator<Item = W, IntoIter = X>,
+        V: Iterator<Item = U>,
+        W: ToString,
+        X: Iterator<Item = W>,
+    {
         table
-            .iter()
-            .map(|v| v.iter().map(|t| t.to_string()).collect::<Vec<String>>())
+            .into_iter()
+            .map(|v| {
+                v.into_iter()
+                    .map(|t| t.to_string())
+                    .collect::<Vec<String>>()
+            })
             .collect::<Vec<Vec<String>>>()
     }
     // utility function to convert a String table to a &str table
@@ -1092,42 +1104,27 @@ impl Colonnade {
         }
         buffer.push(current_lines);
     }
-    /// Determine column widths given data.
-    ///
-    /// Normally you do not need to call this method because it is called when you [`tabulate`](#method.tabulate)
-    /// the first batch of data. However, this initial layout will then be used for every subsequent batch
-    /// of data regardless of its size. If you want to re-flow the table to better fit the new data, you acn
-    /// call `layout`.
-    ///
-    /// # Arguments
-    ///
-    /// * `table` - The data to display.
-    ///
-    /// # Errors
-    ///
-    /// * `ColonnadeError::InconsistentColumns` - The number of columns in some row of `table` does not match the spec.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # extern crate colonnade;
-    /// # use colonnade::Colonnade;
-    /// # use std::error::Error;
-    /// # fn demo() -> Result<(), Box<dyn Error>> {
-    /// let mut colonnade = Colonnade::new(4, 100)?;
-    /// let data = vec![vec!["some", "words", "for", "example"]];
-    /// let lines = colonnade.tabulate(&data)?;
-    /// // ... later
-    /// let data = vec![vec!["a very different, wider", "set of", "words that won't fit comfortably in the old layout"]];
-    /// // reflow table
-    /// colonnade.lay_out(&data)?;
-    /// let lines = colonnade.tabulate(&data)?;
-    /// # Ok(()) }
-    /// ```
-    pub fn lay_out<T>(&mut self, table: &Vec<Vec<T>>) -> Result<(), ColonnadeError>
+    pub fn reset(&mut self) {
+        self.adjusted = false;
+        for i in 0..self.len() {
+            self.columns[i].width = 0;
+        }
+    }
+    // determine the optimal widths of the columns given the data and the specified constraints
+    fn lay_out<T, U, V, W, X>(&mut self, table: T) -> Result<Vec<Vec<String>>, ColonnadeError>
     where
-        T: ToString,
+        T: IntoIterator<Item = U, IntoIter = V>,
+        U: IntoIterator<Item = W, IntoIter = X>,
+        V: Iterator<Item = U>,
+        W: ToString,
+        X: Iterator<Item = W>,
     {
+        let owned_table = Colonnade::own_table(table);
+        if self.adjusted {
+            return Ok(owned_table);
+        }
+        let ref_table = Colonnade::ref_table(&owned_table);
+        let table = &ref_table;
         // validate table
         for i in 0..table.len() {
             let row = &table[i];
@@ -1142,9 +1139,6 @@ impl Colonnade {
         if !self.sufficient_space() {
             return Err(ColonnadeError::InsufficientSpace);
         }
-        let owned_table = Colonnade::own_table(table);
-        let ref_table = Colonnade::ref_table(&owned_table);
-        let table = &ref_table;
         // first try to do it all without splitting
         for i in 0..table.len() {
             for c in 0..self.len() {
@@ -1158,7 +1152,7 @@ impl Colonnade {
         }
         if self.required_width() <= self.width {
             self.adjusted = true;
-            return Ok(());
+            return Ok(owned_table);
         }
         let mut modified_columns: Vec<usize> = Vec::with_capacity(self.len());
         // try shrinking columns to their longest word by order of priority
@@ -1275,7 +1269,7 @@ impl Colonnade {
             }
         }
         self.adjusted = true;
-        Ok(())
+        Ok(owned_table)
     }
     /// Specify a number of blank lines to insert between table rows.
     ///
