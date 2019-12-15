@@ -1,5 +1,5 @@
 extern crate colonnade;
-use colonnade::{Alignment, VerticalAlignment, Colonnade};
+use colonnade::{Alignment, Colonnade, VerticalAlignment};
 
 #[test]
 fn minimal_table() {
@@ -332,11 +332,35 @@ fn bottom_text_with_top_padding() {
 fn centered_text_two_rows() {
     let mut colonnade = Colonnade::new(2, 3).unwrap();
     colonnade.columns[0].vertical_alignment(VerticalAlignment::Middle);
-    let data = vec![vec!["5", "6"],vec!["1", "2 3 4"]];
+    let data = vec![vec!["5", "6"], vec!["1", "2 3 4"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(4, lines.len(), "got the right number of lines");
     assert_eq!("5 6", lines[0]);
     assert_eq!("  2", lines[1]);
     assert_eq!("1 3", lines[2]);
     assert_eq!("  4", lines[3]);
+}
+
+#[test]
+fn variable_length_rows() {
+    let mut colonnade = Colonnade::new(2, 80).unwrap();
+    let lines = colonnade.tabulate(&[vec![1], vec![2, 3]]).unwrap();
+    assert_eq!(2, lines.len(), "got the right number of lines");
+    assert_eq!("1  ", lines[0]);
+    assert_eq!("2 3", lines[1]);
+}
+
+#[test]
+fn reset() {
+    let mut colonnade = Colonnade::new(3, 80).unwrap();
+    let lines = colonnade.tabulate(&[[100, 200, 300]]).unwrap();
+    assert_eq!(1, lines.len(), "got the right number of lines");
+    assert_eq!("100 200 300", lines[0]);
+    let lines = colonnade.tabulate(&[[1, 2, 3]]).unwrap();
+    assert_eq!(1, lines.len(), "got the right number of lines");
+    assert_eq!("1   2   3  ", lines[0]);
+    colonnade.reset();
+    let lines = colonnade.tabulate(&[[1, 2, 3]]).unwrap();
+    assert_eq!(1, lines.len(), "got the right number of lines");
+    assert_eq!("1 2 3", lines[0]);
 }

@@ -869,7 +869,7 @@ impl Colonnade {
         })
     }
     // utility function to convert a T table to a String table
-    fn own_table<T, U, V, W, X>(table: T) -> Vec<Vec<String>>
+    fn own_table<T, U, V, W, X>(&self, table: T) -> Vec<Vec<String>>
     where
         T: IntoIterator<Item = U, IntoIter = V>,
         U: IntoIterator<Item = W, IntoIter = X>,
@@ -877,14 +877,21 @@ impl Colonnade {
         W: ToString,
         X: Iterator<Item = W>,
     {
-        table
+        let mut table = table
             .into_iter()
             .map(|v| {
                 v.into_iter()
                     .map(|t| t.to_string())
                     .collect::<Vec<String>>()
             })
-            .collect::<Vec<Vec<String>>>()
+            .collect::<Vec<Vec<String>>>();
+        // pad rows as necessary
+        for i in 0..table.len() {
+            while table[i].len() < self.len() {
+                table[i].push(String::new());
+            }
+        }
+        table
     }
     // utility function to convert a String table to a &str table
     fn ref_table(table: &Vec<Vec<String>>) -> Vec<Vec<&str>> {
@@ -1145,7 +1152,7 @@ impl Colonnade {
         W: ToString,
         X: Iterator<Item = W>,
     {
-        let owned_table = Colonnade::own_table(table);
+        let owned_table = self.own_table(table);
         if self.adjusted {
             return Ok(owned_table);
         }
