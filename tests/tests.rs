@@ -399,7 +399,9 @@ fn regression1() {
         ["max-width", ""],
     ];
     let mut colonnade = Colonnade::new(2, 127).unwrap();
-    colonnade.columns[1].alignment(Alignment::Right).left_margin(2);
+    colonnade.columns[1]
+        .alignment(Alignment::Right)
+        .left_margin(2);
     colonnade.tabulate(&attributes).unwrap();
     assert!(true, "no panic");
 }

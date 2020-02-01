@@ -14,9 +14,18 @@ fn main() {
     let mut colonnade = Colonnade::new(3, 80).unwrap();
 
     // configure the table a bit
-    colonnade.spaces_between_rows(1).left_margin(4).unwrap().fixed_width(15).unwrap();
-    colonnade.columns[0].alignment(Alignment::Right).left_margin(8);
-    colonnade.columns[1].alignment(Alignment::Center).clear_limits();
+    colonnade
+        .spaces_between_rows(1)
+        .left_margin(4)
+        .unwrap()
+        .fixed_width(15)
+        .unwrap();
+    colonnade.columns[0]
+        .alignment(Alignment::Right)
+        .left_margin(8);
+    colonnade.columns[1]
+        .alignment(Alignment::Center)
+        .clear_limits();
     // if the text is in colored cells, you will probably want some padding
     colonnade.padding(1).unwrap();
 

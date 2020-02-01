@@ -1,5 +1,7 @@
 # Change Log
 
+## 1.2.0
+* better unicode and ansi escape handling
 ## 1.1.3
 * fixed another bug
 ## 1.1.2

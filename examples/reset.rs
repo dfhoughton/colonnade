@@ -1,5 +1,5 @@
 extern crate colonnade;
-use colonnade::{Colonnade, Alignment};
+use colonnade::{Alignment, Colonnade};
 
 // demonstrating the purpose of reset
 fn main() {

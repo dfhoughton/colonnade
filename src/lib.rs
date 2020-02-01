@@ -70,7 +70,10 @@ To control the layout you can specify minimum and maximum column widths and colu
 If the columns differ in priority, lower priority, higher priority number, columns will
 get wrapped first.
 */
+extern crate strip_ansi_escapes;
+extern crate unicode_segmentation;
 use std::fmt;
+use unicode_segmentation::UnicodeSegmentation;
 
 /// All the things that can go wrong when laying out tabular data.
 #[derive(Debug)]
@@ -681,13 +684,17 @@ pub struct Colonnade {
 // find the longest sequence of non-whitespace characters in a string
 fn longest_word(s: &str) -> usize {
     s.split_whitespace().fold(0, |acc, v| {
-        let c = v.chars().count();
+        let c = true_width(v);
         if c > acc {
             c
         } else {
             acc
         }
     })
+}
+
+fn true_width(s: &str) -> usize {
+    UnicodeSegmentation::graphemes(s, true).count()
 }
 
 impl Colonnade {
@@ -763,7 +770,7 @@ impl Colonnade {
             if l != 0 {
                 l += 1;
             }
-            l += w.chars().count();
+            l += true_width(w);
         }
         l
     }
@@ -930,7 +937,11 @@ impl Colonnade {
             .into_iter()
             .map(|v| {
                 v.into_iter()
-                    .map(|t| t.to_string())
+                    .map(|t| {
+                        let s = t.to_string();
+                        let bytes = strip_ansi_escapes::strip(&s).expect(&format!("failed to strip ansi escape sequences from {}", s));
+                        std::str::from_utf8(&bytes).expect(&format!("failed to restores bytes to utf8 string after stripping ansi escape sequences from {}", s)).to_string()
+                    })
                     .collect::<Vec<String>>()
             })
             .collect::<Vec<Vec<String>>>();
@@ -1034,7 +1045,7 @@ impl Colonnade {
                         while !tuple.1.is_empty() {
                             let w = tuple.1.remove(0); // shift off the next word
                             if first {
-                                let wl = w.chars().count() + c.padding_right;
+                                let wl = true_width(w) + c.padding_right;
                                 if wl == c.width {
                                     // word fills column
                                     phrase += w;
@@ -1046,11 +1057,15 @@ impl Colonnade {
                                     if hyphenating {
                                         offset -= 1;
                                     }
-                                    let mut byte_offset = 0;
-                                    for c in w.chars().take(offset) {
-                                        byte_offset += c.len_utf8();
-                                    }
-                                    phrase += &w[0..byte_offset];
+                                    let graphemes = UnicodeSegmentation::graphemes(w, true)
+                                        .collect::<Vec<&str>>();
+                                    let prefix = graphemes[0..offset]
+                                        .iter()
+                                        .map(|&s| s)
+                                        .collect::<Vec<_>>()
+                                        .join("");
+                                    let byte_offset = prefix.len();
+                                    phrase += &prefix;
                                     tuple.1.insert(0, &w[byte_offset..w.len()]); // unshift back the remaining fragment
                                     if hyphenating {
                                         phrase += "-";
@@ -1059,7 +1074,8 @@ impl Colonnade {
                                 }
                             }
                             // try to tack on a new word
-                            let new_length = l + w.len() + if first { 0 } else { 1 };
+                            let new_length =
+                                l + true_width(w) + if first { 0 } else { 1 };
                             if new_length + c.padding_right > c.width {
                                 tuple.1.insert(0, w);
                                 break;
@@ -1074,8 +1090,9 @@ impl Colonnade {
                             }
                         }
                         // pad phrase out properly in its cell
-                        if phrase.len() < c.width {
-                            let surplus = c.width - phrase.chars().count();
+                        let true_width = true_width(phrase.as_str());
+                        if true_width < c.width {
+                            let surplus = c.width - true_width;
                             match c.alignment {
                                 Alignment::Left => {
                                     line += &phrase;
@@ -1166,7 +1183,7 @@ impl Colonnade {
         buffer.push(current_lines);
     }
     /// Erase column widths established by a previous `tabulate` or `macerate`.
-    /// 
+    ///
     /// Note that adjusting any configuration that may affect the horizontal layout of data
     /// has an equivalent effect, forcing a fresh layout of the columns.
     ///
