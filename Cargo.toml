@@ -15,7 +15,12 @@ edition = "2018"
 [dependencies]
 unicode-segmentation = "1"
 strip-ansi-escapes = "0"
+regex = { version = "^1", optional = true }
+lazy_static = { version = "^1", optional = true }
 
 [dev-dependencies]
 term = "0"
 ansi_term = "0"
+
+[features]
+nbsp = ["regex", "lazy_static"]

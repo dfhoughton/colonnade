@@ -405,3 +405,17 @@ fn regression1() {
     colonnade.tabulate(&attributes).unwrap();
     assert!(true, "no panic");
 }
+
+#[cfg(feature = "nbsp")]
+#[test]
+fn nbsp() {
+    let data = [
+        ["foo", " bar"],
+        ["baz", "\u{00A0}plugh"]
+    ];
+    let mut colonnade = Colonnade::new(2, 100).unwrap();
+    let lines = colonnade.tabulate(&data).unwrap();
+    assert_eq!(2, lines.len());
+    assert_eq!("foo bar   ", lines[0]);
+    assert_eq!("baz \u{00A0}plugh", lines[1]);
+}

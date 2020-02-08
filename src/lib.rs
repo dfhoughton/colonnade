@@ -69,9 +69,39 @@ and marking the split with a hyphen (unless the column is only one character wid
 To control the layout you can specify minimum and maximum column widths and column priorities.
 If the columns differ in priority, lower priority, higher priority number, columns will
 get wrapped first.
+
+# Optional Features
+
+Colonnade by default takes full control over whitespace, stripping away any that exists in the data
+it receives and adding it back in as needed to arrange the columns. If you want to regain some
+control, to indent the beginning of paragraphs, say, you can use the `nbsp` feature, which causes
+Colonnade to treat the non-breaking space character `\u{00A0}` like a non-space character.
+
+To require `nbsp`, specify your Colonnade dependency like so in your Cargo.toml:
+
+```toml
+two_timer = { version = "^1.3.0", features = ["nbsp"] }
+```
+
+or
+
+```toml
+[dependencies.colonnade]
+version  = "^1.3.0"
+features = ["nbsp"]
+```
+
+This feature has a dependency on the `regex` and `lazy_static` crates.
 */
 extern crate strip_ansi_escapes;
 extern crate unicode_segmentation;
+#[cfg(feature = "nbsp")]
+#[macro_use]
+extern crate lazy_static;
+#[cfg(feature = "nbsp")]
+extern crate regex;
+#[cfg(feature = "nbsp")]
+use regex::Regex;
 use std::fmt;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -681,9 +711,27 @@ pub struct Colonnade {
     spaces_between_rows: usize,
 }
 
+#[cfg(feature = "nbsp")]
+fn to_words<'a>(s: &'a str) -> Vec<&'a str> {
+    lazy_static! {
+        static ref SPLITTABLE_SPACE: Regex = Regex::new(r"[\s&&[^\u00A0]]+").unwrap();
+    }
+    SPLITTABLE_SPACE
+        .split(s)
+        .filter(|s| s.len() > 0)
+        .collect::<Vec<&'a str>>()
+}
+
+#[cfg(not(feature = "nbsp"))]
+fn to_words<'a>(s: &'a str) -> Vec<&'a str> {
+    s.split_whitespace()
+        .filter(|s| s.len() > 0)
+        .collect::<Vec<&'a str>>()
+}
+
 // find the longest sequence of non-whitespace characters in a string
 fn longest_word(s: &str) -> usize {
-    s.split_whitespace().fold(0, |acc, v| {
+    to_words(s).iter().fold(0, |acc, v| {
         let c = true_width(v);
         if c > acc {
             c
@@ -766,7 +814,7 @@ impl Colonnade {
     // determine the characters required to represent s after whitespace normalization
     fn width_after_normalization(s: &str) -> usize {
         let mut l = 0;
-        for w in s.trim().split_whitespace() {
+        for w in to_words(s) {
             if l != 0 {
                 l += 1;
             }
@@ -997,7 +1045,7 @@ impl Colonnade {
             .map(|(i, w)| {
                 (
                     self.columns[i].padding_top,
-                    w.trim().split_whitespace().collect(),
+                    to_words(w),
                     self.columns[i].padding_bottom,
                 )
             })
@@ -1074,8 +1122,7 @@ impl Colonnade {
                                 }
                             }
                             // try to tack on a new word
-                            let new_length =
-                                l + true_width(w) + if first { 0 } else { 1 };
+                            let new_length = l + true_width(w) + if first { 0 } else { 1 };
                             if new_length + c.padding_right > c.width {
                                 tuple.1.insert(0, w);
                                 break;
