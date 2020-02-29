@@ -1,5 +1,7 @@
 # Change Log
 
+## 1.3.1 *2020-2-29*
+* added justify alignment
 ## 1.3.0 *2020-2-8*
 * added nbsp feature, which treats non-breaking whitespace -- u00A0 -- like non-whitespace
 ## 1.2.0

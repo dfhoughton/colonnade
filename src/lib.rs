@@ -138,6 +138,8 @@ pub enum Alignment {
     Right,
     /// Centering
     Center,
+    /// Justified to both margins; the last line in a column is left-justified
+    Justify,
 }
 
 /// Vertical alignments of text within a column.
@@ -1164,6 +1166,39 @@ impl Colonnade {
                                     line += &phrase;
                                     for _ in 0..c.padding_right {
                                         line += " "
+                                    }
+                                }
+                                Alignment::Justify => {
+                                    let words = phrase.split(" ").collect::<Vec<_>>(); // could be more efficient, but this allows simpler code structure
+                                    let last_words = tuple.1.is_empty();
+                                    if last_words || words.len() == 1 {
+                                        // treat as left-justified
+                                        line += &phrase;
+                                        for _ in 0..surplus {
+                                            line += " "
+                                        }
+                                    } else {
+                                        let gaps = words.len() - 1;
+                                        let rearrangeable = surplus + gaps - c.padding_right;
+                                        let min_spacer = rearrangeable / gaps;
+                                        let extra = rearrangeable - min_spacer * gaps;
+                                        let extra_offset = words.len() - extra;
+                                        for (i, word) in words.iter().enumerate() {
+                                            if i == 0 {
+                                                line += word;
+                                            } else {
+                                                for _ in 0..(min_spacer) {
+                                                    line += " ";
+                                                }
+                                                if i >= extra_offset {
+                                                    line += " ";
+                                                }
+                                                line += word;
+                                            }
+                                        }
+                                        for _ in 0..c.padding_right {
+                                            line += " "
+                                        }
                                     }
                                 }
                             }
