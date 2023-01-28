@@ -1,6 +1,6 @@
 [package]
 name = "colonnade"
-version = "1.3.1"
+version = "1.3.2"
 authors = ["dfhoughton <dfhoughton@gmail.com>"]
 description= "format tabular data for display"
 homepage = "https://github.com/dfhoughton/colonnade"
@@ -15,7 +15,7 @@ edition = "2018"
 [dependencies]
 unicode-segmentation = "1"
 strip-ansi-escapes = "0"
-regex = { version = "^1", optional = true }
+regex = { version = "1.7", optional = true }
 lazy_static = { version = "^1", optional = true }
 
 [dev-dependencies]
