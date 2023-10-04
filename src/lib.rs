@@ -989,7 +989,7 @@ impl Colonnade {
                 v.into_iter()
                     .map(|t| {
                         let s = t.to_string();
-                        let bytes = strip_ansi_escapes::strip(&s).expect(&format!("failed to strip ansi escape sequences from {}", s));
+                        let bytes = strip_ansi_escapes::strip(&s);
                         std::str::from_utf8(&bytes).expect(&format!("failed to restores bytes to utf8 string after stripping ansi escape sequences from {}", s)).to_string()
                     })
                     .collect::<Vec<String>>()
