@@ -1078,7 +1078,7 @@ impl Colonnade {
                 for (i, c) in self.columns.iter().enumerate() {
                     let left_margin = c.margin();
                     let mut line = String::new();
-                    let mut tuple = &mut words[i];
+                    let tuple = &mut words[i];
                     if tuple.0 > 0 {
                         line = c.blank_line();
                         tuple.0 -= 1;
