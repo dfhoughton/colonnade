@@ -1,5 +1,7 @@
 # Change Log
 
+## 1.3.3 *2023-10-9
+* merged PR from @Paradyx
 ## 1.3.2 *2023-1-28*
 * bumped regex version to make cargo-audit happier
 ## 1.3.1 *2020-2-29*
