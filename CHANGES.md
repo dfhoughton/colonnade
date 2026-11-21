@@ -1,5 +1,12 @@
 # Change Log
 
+## Unreleased (2.0.0)
+* Complete code refactoring with module system:
+  - Split into `error`, `alignment`, `column`, `text`, and main `lib` modules
+  - Improved code organization and maintainability
+* Improved `reset()` method to return `&mut Self` for chainability
+* Enhanced error messages with detailed descriptions
+
 ## 1.3.4 *2023-11-21*
 * Upgraded to Rust 2024 edition
 * Updated and pinned all dependencies

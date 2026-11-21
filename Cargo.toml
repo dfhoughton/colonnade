@@ -1,6 +1,6 @@
 [package]
 name = "colonnade"
-version = "1.3.4"
+version = "2.0.0"
 authors = ["dfhoughton <dfhoughton@gmail.com>"]
 description = "format tabular data for display"
 homepage = "https://github.com/dfhoughton/colonnade"
