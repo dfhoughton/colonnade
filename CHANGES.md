@@ -1,6 +1,6 @@
 # Change Log
 
-## Unreleased (2.0.0)
+## 2.0.0 *2026-11-21*
 * **Breaking Changes:**
   - Made all `Column` fields private (except `index`) with getter methods
   - Renamed all `Column` setter methods to use `set_` prefix (e.g., `left_margin()` -> `set_left_margin()`)
@@ -21,7 +21,7 @@
   - Fixed clippy warnings throughout the codebase
   - Updated documentation examples
 
-## 1.3.4 *2023-11-21*
+## 1.3.4 *2026-11-21*
 * Upgraded to Rust 2024 edition
 * Updated and pinned all dependencies
 * Removed `extern crate` declarations (Rust 2018+ style)
