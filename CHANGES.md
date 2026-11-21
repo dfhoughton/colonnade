@@ -2,7 +2,13 @@
 
 ## Unreleased (2.0.0)
 * **Breaking Changes:**
-  - Made `Column::adjusted` field private with `is_adjusted()` getter and `set_adjusted()` setter
+  - Made all `Column` fields private (except `index`) with getter methods
+  - Renamed all `Column` setter methods to use `set_` prefix (e.g., `left_margin()` -> `set_left_margin()`)
+  - This provides better encapsulation and avoids name collisions with getters
+* **Performance Improvements:**
+  - Optimized word splitting algorithm by using `VecDeque` instead of `Vec` for O(1) removal from front
+  - Optimized string building by using `String::with_capacity()` and `push_str()` instead of `+=` concatenation
+  - Reduced redundant `true_width()` calls by caching results locally
 * **Non-Breaking Improvements:**
   - Complete code refactoring with module system:
     - Split into `error`, `alignment`, `column`, `text`, and main `lib` modules

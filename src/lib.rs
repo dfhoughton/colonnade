@@ -102,6 +102,7 @@ mod error;
 mod text;
 
 use crate::text::{longest_word, to_words, true_width, width_after_normalization};
+use std::collections::VecDeque;
 
 #[cfg(feature = "nbsp")]
 use lazy_static::lazy_static;
@@ -298,10 +299,11 @@ impl Colonnade {
                     if line.len() == 1 && line[0].1.is_empty() {
                         String::new()
                     } else {
-                        let mut l = String::new();
+                        let total_capacity: usize = line.iter().map(|(margin, text)| margin.len() + text.len()).sum();
+                        let mut l = String::with_capacity(total_capacity);
                         for (margin, text) in line {
-                            l += margin;
-                            l += text;
+                            l.push_str(&margin);
+                            l.push_str(&text);
                         }
                         l
                     }
@@ -317,14 +319,14 @@ impl Colonnade {
         last_row: bool,
         maximum_vertical_padding: usize,
     ) {
-        let mut words: Vec<(usize, Vec<&str>, usize)> = self
+        let mut words: Vec<(usize, VecDeque<&str>, usize)> = self
             .columns
             .iter()
             .enumerate()
             .map(|(i, c)| {
                 (
                     c.padding_top(),
-                    to_words(row.get(i).unwrap_or(&"")),
+                    to_words(row.get(i).unwrap_or(&"")).into_iter().collect(),
                     c.padding_bottom(),
                 )
             })
@@ -354,7 +356,7 @@ impl Colonnade {
                 let mut pieces = vec![];
                 for (i, c) in self.columns.iter().enumerate() {
                     let left_margin = c.margin();
-                    let mut line = String::new();
+                    let mut line = String::with_capacity(c.width());
                     let tuple = &mut words[i];
                     if tuple.0 > 0 {
                         line = c.blank_line();
@@ -366,14 +368,16 @@ impl Colonnade {
                         }
                     } else {
                         let mut l = c.padding_left();
-                        let mut phrase = " ".repeat(l);
+                        let mut phrase = String::with_capacity(c.width());
+                        phrase.push_str(&" ".repeat(l));
                         let mut first = true;
                         while !tuple.1.is_empty() {
-                            let w = tuple.1.remove(0);
+                            let w = tuple.1.pop_front().unwrap();
+                            let w_width = true_width(w);
                             if first {
-                                let wl = true_width(w) + c.padding_right();
+                                let wl = w_width + c.padding_right();
                                 if wl == c.width() {
-                                    phrase += w;
+                                    phrase.push_str(w);
                                     break;
                                 } else if wl > c.width() {
                                     let hyphenating = c.hyphenating();
@@ -384,25 +388,25 @@ impl Colonnade {
                                     let graphemes: Vec<&str> = UnicodeSegmentation::graphemes(w, true).collect();
                                     let prefix = graphemes[..offset].to_vec().join("");
                                     let byte_offset = prefix.len();
-                                    phrase += &prefix;
-                                    tuple.1.insert(0, &w[byte_offset..]);
+                                    phrase.push_str(&prefix);
+                                    tuple.1.push_front(&w[byte_offset..]);
                                     if hyphenating {
-                                        phrase += "-";
+                                        phrase.push_str("-");
                                     }
                                     break;
                                 }
                             }
-                            let new_length = l + true_width(w) + if first { 0 } else { 1 };
+                            let new_length = l + w_width + if first { 0 } else { 1 };
                             if new_length + c.padding_right() > c.width() {
-                                tuple.1.insert(0, w);
+                                tuple.1.push_front(w);
                                 break;
                             } else {
                                 if first {
                                     first = false;
                                 } else {
-                                    phrase += " ";
+                                    phrase.push_str(" ");
                                 }
-                                phrase += w;
+                                phrase.push_str(w);
                                 l = new_length;
                             }
                         }
@@ -411,26 +415,26 @@ impl Colonnade {
                             let surplus = c.width() - phrase_width;
                             match c.alignment() {
                                 Alignment::Left => {
-                                    line += &phrase;
-                                    line += &" ".repeat(surplus);
+                                    line.push_str(&phrase);
+                                    line.push_str(&" ".repeat(surplus));
                                 }
                                 Alignment::Center => {
                                     let left_bit = surplus / 2;
-                                    line += &" ".repeat(left_bit);
-                                    line += &phrase;
-                                    line += &" ".repeat(surplus - left_bit);
+                                    line.push_str(&" ".repeat(left_bit));
+                                    line.push_str(&phrase);
+                                    line.push_str(&" ".repeat(surplus - left_bit));
                                 }
                                 Alignment::Right => {
-                                    line += &" ".repeat(surplus - c.padding_right());
-                                    line += &phrase;
-                                    line += &" ".repeat(c.padding_right());
+                                    line.push_str(&" ".repeat(surplus - c.padding_right()));
+                                    line.push_str(&phrase);
+                                    line.push_str(&" ".repeat(c.padding_right()));
                                 }
                                 Alignment::Justify => {
                                     let words: Vec<&str> = phrase.split(' ').collect();
                                     let last_line = tuple.1.is_empty();
                                     if last_line || words.len() == 1 {
-                                        line += &phrase;
-                                        line += &" ".repeat(surplus);
+                                        line.push_str(&phrase);
+                                        line.push_str(&" ".repeat(surplus));
                                     } else {
                                         let gaps = words.len() - 1;
                                         let rearrangeable = surplus + gaps - c.padding_right();
@@ -439,21 +443,21 @@ impl Colonnade {
                                         let extra_offset = words.len() - extra;
                                         for (i, word) in words.iter().enumerate() {
                                             if i == 0 {
-                                                line += word;
+                                                line.push_str(word);
                                             } else {
-                                                line += &" ".repeat(min_spacer);
+                                                line.push_str(&" ".repeat(min_spacer));
                                                 if i >= extra_offset {
-                                                    line += " ";
+                                                    line.push_str(" ");
                                                 }
-                                                line += word;
+                                                line.push_str(word);
                                             }
                                         }
-                                        line += &" ".repeat(c.padding_right());
+                                        line.push_str(&" ".repeat(c.padding_right()));
                                     }
                                 }
                             }
                         } else {
-                            line += &phrase;
+                            line.push_str(&phrase);
                         }
                     }
                     pieces.push((left_margin, line));
@@ -490,15 +494,15 @@ impl Colonnade {
                         } else {
                             movable_lines
                         };
-                        let mut rotator: Vec<(String, String)> = (top_pointer..end)
+                        let mut rotator: VecDeque<(String, String)> = (top_pointer..end)
                             .map(|i| current_lines[i].remove(c.index))
                             .collect();
                         for _ in 0..lines_to_move {
-                            let pair = rotator.pop().unwrap();
-                            rotator.insert(0, pair);
+                            let pair = rotator.pop_back().unwrap();
+                            rotator.push_front(pair);
                         }
                         for i in top_pointer..end {
-                            current_lines[i].insert(c.index, rotator.remove(0));
+                            current_lines[i].insert(c.index, rotator.pop_front().unwrap());
                         }
                     }
                 }
