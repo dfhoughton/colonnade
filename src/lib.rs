@@ -18,33 +18,31 @@ colonnade = "2"
 ```rust
 use colonnade::{Alignment, Colonnade};
 
-fn main() {
-    // text to put in tabular form
-    let text = vec![
-        vec![
-            "Colonnade lets you format text in columns.",
-            "As you can see, it supports text alignment, viewport width, and column widths.",
-            "If you want to colorize your table, you'll need to use the macerate method.",
-        ],
-        vec!["", "Two or more rows of columns makes a table.", ""],
-    ];
+// text to put in tabular form
+let text = vec![
+    vec![
+        "Colonnade lets you format text in columns.",
+        "As you can see, it supports text alignment, viewport width, and column widths.",
+        "If you want to colorize your table, you'll need to use the macerate method.",
+    ],
+    vec!["", "Two or more rows of columns makes a table.", ""],
+];
 
-    // 3 columns of text in an 80-character viewport
-    let mut colonnade = Colonnade::new(3, 80).unwrap();
+// 3 columns of text in an 80-character viewport
+let mut colonnade = Colonnade::new(3, 80).unwrap();
 
-    // configure the table a bit
-    colonnade.left_margin(4).unwrap();
-    colonnade.columns[0].left_margin(8);      // the first column should have a left margin 8 spaces wide
-    colonnade.fixed_width(15).unwrap();                // first we set all the columns to 15 characters wide
-    colonnade.columns[1].clear_limits();      // but then remove this restriction on the central column
-    colonnade.columns[0].alignment(Alignment::Right);
-    colonnade.columns[1].alignment(Alignment::Center);
-    colonnade.spaces_between_rows(1);         // add a blank link between rows
+// configure the table a bit
+colonnade.left_margin(4).unwrap();
+colonnade.columns[0].left_margin(8);      // the first column should have a left margin 8 spaces wide
+colonnade.fixed_width(15).unwrap();                // first we set all the columns to 15 characters wide
+colonnade.columns[1].clear_limits();      // but then remove this restriction on the central column
+colonnade.columns[0].alignment(Alignment::Right);
+colonnade.columns[1].alignment(Alignment::Center);
+colonnade.spaces_between_rows(1);         // add a blank link between rows
 
-    // now print out the table
-    for line in colonnade.tabulate(&text).unwrap() {
-        println!("{}", line);
-    }
+// now print out the table
+for line in colonnade.tabulate(&text).unwrap() {
+    println!("{}", line);
 }
 ```
 which produces
@@ -110,6 +108,15 @@ use lazy_static::lazy_static;
 
 extern crate strip_ansi_escapes;
 use unicode_segmentation::UnicodeSegmentation;
+
+/// Type alias for a cell in macerated output: (margin, content)
+pub type Cell = (String, String);
+/// Type alias for a line of cells
+pub type Line = Vec<Cell>;
+/// Type alias for a row of lines (one row may wrap to multiple lines)
+pub type MaceratedRow = Vec<Line>;
+/// Type alias for the complete macerated output
+pub type Macerated = Vec<MaceratedRow>;
 
 /// A struct holding formatting information. This is the object which tabulates data.
 #[derive(Debug, Clone)]
@@ -220,10 +227,7 @@ impl Colonnade {
     }
 
     /// Chew up the text into bits suitable for piecemeal layout.
-    pub fn macerate<T, U, V, W, X>(
-        &mut self,
-        table: T,
-    ) -> Result<Vec<Vec<Vec<(String, String)>>>, ColonnadeError>
+    pub fn macerate<T, U, V, W, X>(&mut self, table: T) -> Result<Macerated, ColonnadeError>
     where
         T: IntoIterator<Item = U, IntoIter = V>,
         U: IntoIterator<Item = W, IntoIter = X>,
@@ -279,14 +283,14 @@ impl Colonnade {
     }
 
     // utility function to convert a String table to a &str table
-    fn ref_table(table: &Vec<Vec<String>>) -> Vec<Vec<&str>> {
+    fn ref_table(table: &[Vec<String>]) -> Vec<Vec<&str>> {
         table
             .iter()
             .map(|v| v.iter().map(|s| s.as_str()).collect::<Vec<&str>>())
             .collect::<Vec<Vec<&str>>>()
     }
 
-    fn reconstitute_rows(maceration: Vec<Vec<Vec<(String, String)>>>) -> Vec<String> {
+    fn reconstitute_rows(maceration: Macerated) -> Vec<String> {
         maceration
             .iter()
             .flat_map(|row| {
@@ -308,7 +312,7 @@ impl Colonnade {
 
     fn add_row(
         &self,
-        buffer: &mut Vec<Vec<Vec<(String, String)>>>,
+        buffer: &mut Macerated,
         row: &[&str],
         last_row: bool,
         maximum_vertical_padding: usize,
