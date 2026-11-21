@@ -16,10 +16,8 @@ colonnade = "1"
 # Example
 
 ```rust
-extern crate colonnade;
 use colonnade::{Alignment, Colonnade};
 
-#[allow(unused_must_use)]
 fn main() {
     // text to put in tabular form
     let text = vec![
@@ -80,7 +78,7 @@ Colonnade to treat the non-breaking space character `\u{00A0}` like a non-space 
 To require `nbsp`, specify your Colonnade dependency like so in your Cargo.toml:
 
 ```toml
-two_timer = { version = "^1.3.0", features = ["nbsp"] }
+colonnade = { version = "^1.3.0", features = ["nbsp"] }
 ```
 
 or
@@ -93,16 +91,12 @@ features = ["nbsp"]
 
 This feature has a dependency on the `regex` and `lazy_static` crates.
 */
-extern crate strip_ansi_escapes;
-extern crate unicode_segmentation;
+use std::fmt;
+
 #[cfg(feature = "nbsp")]
-#[macro_use]
-extern crate lazy_static;
-#[cfg(feature = "nbsp")]
-extern crate regex;
+use lazy_static::lazy_static;
 #[cfg(feature = "nbsp")]
 use regex::Regex;
-use std::fmt;
 use unicode_segmentation::UnicodeSegmentation;
 
 /// All the things that can go wrong when laying out tabular data.
@@ -174,7 +168,7 @@ pub struct Column {
 impl Column {
     fn default(index: usize) -> Column {
         Column {
-            index: index,
+            index,
             alignment: Alignment::Left,
             vertical_alignment: VerticalAlignment::Top,
             left_margin: 1,
@@ -199,11 +193,7 @@ impl Column {
     fn minimum_width(&self) -> usize {
         let w1 = self.horizontal_padding();
         let w2 = self.min_width.unwrap_or(w1);
-        if w2 > w1 {
-            w2
-        } else {
-            w1
-        }
+        if w2 > w1 { w2 } else { w1 }
     }
     fn effective_width(&self) -> usize {
         let w = if self.max_width.unwrap_or(self.width) < self.width {
@@ -212,11 +202,7 @@ impl Column {
             self.width
         };
         let m = self.minimum_width();
-        if m > w {
-            m
-        } else {
-            w
-        }
+        if m > w { m } else { w }
     }
     fn inner_width(&self) -> usize {
         self.width - self.padding_right
@@ -399,13 +385,11 @@ impl Column {
     pub fn fixed_width(&mut self, width: usize) -> Result<&mut Self, ColonnadeError> {
         self.min_width = None;
         self.max_width = None;
-        match self.min_width(width) {
-            Err(e) => return Err(e),
-            Ok(_) => (),
+        if let Err(e) = self.min_width(width) {
+            return Err(e);
         }
-        match self.max_width(width) {
-            Err(e) => return Err(e),
-            Ok(_) => (),
+        if let Err(e) = self.max_width(width) {
+            return Err(e);
         }
         Ok(self)
     }
@@ -727,7 +711,7 @@ fn to_words<'a>(s: &'a str) -> Vec<&'a str> {
 #[cfg(not(feature = "nbsp"))]
 fn to_words<'a>(s: &'a str) -> Vec<&'a str> {
     s.split_whitespace()
-        .filter(|s| s.len() > 0)
+        .filter(|s| !s.is_empty())
         .collect::<Vec<&'a str>>()
 }
 
@@ -735,11 +719,7 @@ fn to_words<'a>(s: &'a str) -> Vec<&'a str> {
 fn longest_word(s: &str) -> usize {
     to_words(s).iter().fold(0, |acc, v| {
         let c = true_width(v);
-        if c > acc {
-            c
-        } else {
-            acc
-        }
+        if c > acc { c } else { acc }
     })
 }
 
@@ -771,7 +751,7 @@ impl Colonnade {
         if columns == 0 {
             return Err(ColonnadeError::InsufficientColumns);
         }
-        let mut columns: Vec<Column> = (0..columns).map(|i| Column::default(i)).collect();
+        let mut columns: Vec<Column> = (0..columns).map(Column::default).collect();
         columns[0].left_margin = 0;
         let spec = Colonnade {
             columns,
@@ -876,7 +856,7 @@ impl Colonnade {
         X: Iterator<Item = W>,
     {
         self.macerate(table)
-            .and_then(|buffer| Ok(Colonnade::reconstitute_rows(buffer)))
+            .map(|buffer| Colonnade::reconstitute_rows(buffer))
     }
     /// Chew up the text into bits suitable for piecemeal layout.
     ///
@@ -960,7 +940,7 @@ impl Colonnade {
         W: ToString,
         X: Iterator<Item = W>,
     {
-        self.lay_out(table).and_then(|owned_table| {
+        self.lay_out(table).map(|owned_table| {
             let ref_table = Colonnade::ref_table(&owned_table);
             let table = &ref_table;
             let mut buffer = vec![];
@@ -971,7 +951,7 @@ impl Colonnade {
             for (i, row) in table.iter().enumerate() {
                 self.add_row(&mut buffer, row, i == table.len() - 1, p);
             }
-            Ok(buffer)
+            buffer
         })
     }
     // utility function to convert a T table to a String table
@@ -990,7 +970,7 @@ impl Colonnade {
                     .map(|t| {
                         let s = t.to_string();
                         let bytes = strip_ansi_escapes::strip(&s);
-                        std::str::from_utf8(&bytes).expect(&format!("failed to restores bytes to utf8 string after stripping ansi escape sequences from {}", s)).to_string()
+                        std::str::from_utf8(&bytes).unwrap_or_else(|_| panic!("failed to restores bytes to utf8 string after stripping ansi escape sequences from {}", s)).to_string()
                     })
                     .collect::<Vec<String>>()
             })
@@ -1015,7 +995,7 @@ impl Colonnade {
             .iter()
             .flat_map(|row| {
                 row.iter().map(|line| {
-                    if line.len() == 1 && line[0].1.len() == 0 {
+                    if line.len() == 1 && line[0].1.is_empty() {
                         String::new() // return empty strings instead of fat lines for blank lines
                     } else {
                         let mut l = String::new();
@@ -1111,7 +1091,7 @@ impl Colonnade {
                                         .collect::<Vec<&str>>();
                                     let prefix = graphemes[0..offset]
                                         .iter()
-                                        .map(|&s| s)
+                                        .copied()
                                         .collect::<Vec<_>>()
                                         .join("");
                                     let byte_offset = prefix.len();
@@ -1335,7 +1315,7 @@ impl Colonnade {
         // first try to do it all without splitting
         for i in 0..table.len() {
             for c in 0..self.len() {
-                let m = Colonnade::width_after_normalization(&table[i][c])
+                let m = Colonnade::width_after_normalization(table[i][c])
                     + self.columns[c].horizontal_padding();
                 if m >= self.columns[c].width {
                     // to force initial expansion to min width
@@ -1355,7 +1335,7 @@ impl Colonnade {
                     modified_columns.push(c);
                     self.columns[c].shrink(0);
                     for r in 0..table.len() {
-                        let m = longest_word(&table[r][c]) + self.columns[c].horizontal_padding();
+                        let m = longest_word(table[r][c]) + self.columns[c].horizontal_padding();
                         if m > self.columns[c].width {
                             self.columns[c].expand(m);
                         }
@@ -1545,9 +1525,8 @@ impl Colonnade {
     /// ```
     pub fn max_width(&mut self, max_width: usize) -> Result<&mut Self, ColonnadeError> {
         for i in 0..self.len() {
-            match self.columns[i].max_width(max_width) {
-                Err(e) => return Err(e),
-                Ok(_) => (),
+            if let Err(e) = self.columns[i].max_width(max_width) {
+                return Err(e);
             }
         }
         Ok(self)
@@ -1578,9 +1557,8 @@ impl Colonnade {
     /// ```
     pub fn min_width(&mut self, min_width: usize) -> Result<&mut Self, ColonnadeError> {
         for i in 0..self.len() {
-            match self.columns[i].min_width(min_width) {
-                Err(e) => return Err(e),
-                Ok(_) => (),
+            if let Err(e) = self.columns[i].min_width(min_width) {
+                return Err(e);
             }
         }
         if !self.sufficient_space() {
@@ -1615,9 +1593,8 @@ impl Colonnade {
     /// ```
     pub fn fixed_width(&mut self, width: usize) -> Result<&mut Self, ColonnadeError> {
         for i in 0..self.len() {
-            match self.columns[i].fixed_width(width) {
-                Err(e) => return Err(e),
-                Ok(_) => (),
+            if let Err(e) = self.columns[i].fixed_width(width) {
+                return Err(e);
             }
         }
         Ok(self)

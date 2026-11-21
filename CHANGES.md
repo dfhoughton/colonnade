@@ -1,6 +1,15 @@
 # Change Log
 
-## 1.3.3 *2023-10-9
+## Unreleased
+* Upgraded to Rust 2024 edition
+* Updated and pinned all dependencies
+* Removed `extern crate` declarations (Rust 2018+ style)
+* Added clippy linting configuration
+* Added rustfmt configuration
+* Fixed clippy warnings throughout the codebase
+* Updated .gitignore with common patterns
+
+## 1.3.3 *2023-10-9*
 * merged PR from @Paradyx
 ## 1.3.2 *2023-1-28*
 * bumped regex version to make cargo-audit happier

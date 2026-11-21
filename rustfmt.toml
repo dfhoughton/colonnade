@@ -1,0 +1,13 @@
+# Rustfmt configuration for colonnade
+# https://rust-lang.github.io/rustfmt/
+
+# Basic settings
+edition = "2024"
+
+# Formatting options
+hard_tabs = false
+tab_spaces = 4
+newline_style = "Auto"
+
+# Line wrapping
+max_width = 100

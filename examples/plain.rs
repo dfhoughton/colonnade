@@ -1,4 +1,3 @@
-extern crate colonnade;
 use colonnade::{Alignment, Colonnade};
 
 #[allow(unused_must_use)]

@@ -1,4 +1,3 @@
-extern crate colonnade;
 use colonnade::{Alignment, Colonnade, VerticalAlignment};
 
 #[test]
@@ -353,14 +352,14 @@ fn variable_length_rows() {
 #[test]
 fn reset() {
     let mut colonnade = Colonnade::new(3, 80).unwrap();
-    let lines = colonnade.tabulate(&[[100, 200, 300]]).unwrap();
+    let lines = colonnade.tabulate([[100, 200, 300]]).unwrap();
     assert_eq!(1, lines.len(), "got the right number of lines");
     assert_eq!("100 200 300", lines[0]);
-    let lines = colonnade.tabulate(&[[1, 2, 3]]).unwrap();
+    let lines = colonnade.tabulate([[1, 2, 3]]).unwrap();
     assert_eq!(1, lines.len(), "got the right number of lines");
     assert_eq!("1   2   3  ", lines[0]);
     colonnade.reset();
-    let lines = colonnade.tabulate(&[[1, 2, 3]]).unwrap();
+    let lines = colonnade.tabulate([[1, 2, 3]]).unwrap();
     assert_eq!(1, lines.len(), "got the right number of lines");
     assert_eq!("1 2 3", lines[0]);
 }
@@ -368,18 +367,18 @@ fn reset() {
 #[test]
 fn wide_char_wrapping() {
     let mut colonnade = Colonnade::new(1, 1).unwrap();
-    let lines = colonnade.tabulate(&[["ßßß"]]).unwrap();
+    let lines = colonnade.tabulate([["ßßß"]]).unwrap();
     assert_eq!(3, lines.len(), "got the right number of lines");
     for i in 0..3 {
         assert_eq!("ß", lines[i]);
     }
     colonnade = Colonnade::new(1, 2).unwrap();
-    let lines = colonnade.tabulate(&[["ßßß"]]).unwrap();
+    let lines = colonnade.tabulate([["ßßß"]]).unwrap();
     assert_eq!(2, lines.len(), "got the right number of lines");
     assert_eq!("ß-", lines[0]);
     assert_eq!("ßß", lines[1]);
     colonnade = Colonnade::new(1, 2).unwrap();
-    let lines = colonnade.tabulate(&[["bloß"]]).unwrap();
+    let lines = colonnade.tabulate([["bloß"]]).unwrap();
     assert_eq!(3, lines.len(), "got the right number of lines");
     assert_eq!("b-", lines[0]);
     assert_eq!("l-", lines[1]);
@@ -402,17 +401,14 @@ fn regression1() {
     colonnade.columns[1]
         .alignment(Alignment::Right)
         .left_margin(2);
-    colonnade.tabulate(&attributes).unwrap();
+    colonnade.tabulate(attributes).unwrap();
     assert!(true, "no panic");
 }
 
 #[cfg(feature = "nbsp")]
 #[test]
 fn nbsp() {
-    let data = [
-        ["foo", " bar"],
-        ["baz", "\u{00A0}plugh"]
-    ];
+    let data = [["foo", " bar"], ["baz", "\u{00A0}plugh"]];
     let mut colonnade = Colonnade::new(2, 100).unwrap();
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(2, lines.len());

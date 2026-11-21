@@ -1,5 +1,3 @@
-extern crate colonnade;
-extern crate term;
 use colonnade::{Alignment, Colonnade};
 fn main() {
     // text to put in tabular form

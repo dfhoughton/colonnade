@@ -1,5 +1,3 @@
-extern crate ansi_term;
-extern crate colonnade;
 use ansi_term::Colour::{Black, Blue, Green, Red, White, Yellow};
 use ansi_term::Style;
 use colonnade::{Alignment, Colonnade, VerticalAlignment};
