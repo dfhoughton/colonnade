@@ -1,11 +1,19 @@
 # Change Log
 
 ## Unreleased (2.0.0)
-* Complete code refactoring with module system:
-  - Split into `error`, `alignment`, `column`, `text`, and main `lib` modules
-  - Improved code organization and maintainability
-* Improved `reset()` method to return `&mut Self` for chainability
-* Enhanced error messages with detailed descriptions
+* **Breaking Changes:**
+  - Made `Column::adjusted` field private with `is_adjusted()` getter and `set_adjusted()` setter
+* **Non-Breaking Improvements:**
+  - Complete code refactoring with module system:
+    - Split into `error`, `alignment`, `column`, `text`, and main `lib` modules
+    - Improved code organization and maintainability
+  - Added type aliases for complex types: `Cell`, `Line`, `MaceratedRow`, `Macerated`
+  - Improved `reset()` method to return `&mut Self` for chainability
+  - Enhanced error messages with detailed descriptions
+  - Updated function signatures to use type aliases
+  - Replaced `&Vec<T>` with `&[T]` slices where appropriate
+  - Fixed clippy warnings throughout the codebase
+  - Updated documentation examples
 
 ## 1.3.4 *2023-11-21*
 * Upgraded to Rust 2024 edition
