@@ -6,6 +6,7 @@ use crate::error::ColonnadeError;
 /// A struct holding formatting information for a particular column.
 #[derive(Debug, Clone)]
 pub struct Column {
+    /// Column index (0-based)
     pub index: usize,
     pub alignment: Alignment,
     pub vertical_alignment: VerticalAlignment,
@@ -20,7 +21,8 @@ pub struct Column {
     pub padding_top: usize,
     pub padding_bottom: usize,
     pub hyphenate: bool,
-    pub adjusted: bool,
+    /// Internal flag tracking whether the column has been adjusted
+    adjusted: bool,
 }
 
 impl Column {
@@ -52,6 +54,17 @@ impl Column {
     /// Calculate the total vertical padding (top + bottom).
     pub fn vertical_padding(&self) -> usize {
         self.padding_top + self.padding_bottom
+    }
+
+    /// Check if the column has been adjusted.
+    pub fn is_adjusted(&self) -> bool {
+        self.adjusted
+    }
+
+    /// Set the adjusted flag for the column.
+    pub fn set_adjusted(&mut self, adjusted: bool) -> &mut Self {
+        self.adjusted = adjusted;
+        self
     }
 
     /// Get the minimum width of the column.

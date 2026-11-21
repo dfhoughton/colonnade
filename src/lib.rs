@@ -516,19 +516,19 @@ impl Colonnade {
     /// Erase column widths established by a previous `tabulate` or `macerate`.
     pub fn reset(&mut self) -> &mut Self {
         for column in &mut self.columns {
-            column.adjusted = false;
+            column.set_adjusted(false);
             column.width = 0;
         }
         self
     }
 
     fn adjusted(&self) -> bool {
-        self.columns.iter().all(|c| c.adjusted)
+        self.columns.iter().all(|c| c.is_adjusted())
     }
 
     fn mark_adjusted(&mut self) {
         for column in &mut self.columns {
-            column.adjusted = true;
+            column.set_adjusted(true);
         }
     }
 
