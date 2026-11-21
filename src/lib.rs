@@ -33,11 +33,11 @@ let mut colonnade = Colonnade::new(3, 80).unwrap();
 
 // configure the table a bit
 colonnade.left_margin(4).unwrap();
-colonnade.columns[0].left_margin(8);      // the first column should have a left margin 8 spaces wide
+colonnade.columns[0].set_left_margin(8);      // the first column should have a left margin 8 spaces wide
 colonnade.fixed_width(15).unwrap();                // first we set all the columns to 15 characters wide
 colonnade.columns[1].clear_limits();      // but then remove this restriction on the central column
-colonnade.columns[0].alignment(Alignment::Right);
-colonnade.columns[1].alignment(Alignment::Center);
+colonnade.columns[0].set_alignment(Alignment::Right);
+colonnade.columns[1].set_alignment(Alignment::Center);
 colonnade.spaces_between_rows(1);         // add a blank link between rows
 
 // now print out the table
@@ -165,7 +165,7 @@ impl Colonnade {
     fn minimal_width(&self) -> usize {
         self.columns
             .iter()
-            .fold(0, |acc, v| acc + v.left_margin + v.min_width.unwrap_or(1))
+            .fold(0, |acc, v| acc + v.left_margin() + v.min_width().unwrap_or(1))
     }
 
     fn sufficient_space(&self) -> bool {
@@ -206,7 +206,7 @@ impl Colonnade {
 
     // returns priorities sorted lowest to highest
     fn priorities(&self) -> Vec<usize> {
-        let mut v: Vec<usize> = self.columns.iter().map(|c| c.priority).collect();
+        let mut v: Vec<usize> = self.columns.iter().map(|c| c.priority()).collect();
         v.sort_unstable();
         v.dedup();
         v.reverse();
@@ -323,9 +323,9 @@ impl Colonnade {
             .enumerate()
             .map(|(i, c)| {
                 (
-                    c.padding_top,
+                    c.padding_top(),
                     to_words(row.get(i).unwrap_or(&"")),
-                    c.padding_bottom,
+                    c.padding_bottom(),
                 )
             })
             .collect();
@@ -365,17 +365,17 @@ impl Colonnade {
                             tuple.2 -= 1;
                         }
                     } else {
-                        let mut l = c.padding_left;
+                        let mut l = c.padding_left();
                         let mut phrase = " ".repeat(l);
                         let mut first = true;
                         while !tuple.1.is_empty() {
                             let w = tuple.1.remove(0);
                             if first {
-                                let wl = true_width(w) + c.padding_right;
-                                if wl == c.width {
+                                let wl = true_width(w) + c.padding_right();
+                                if wl == c.width() {
                                     phrase += w;
                                     break;
-                                } else if wl > c.width {
+                                } else if wl > c.width() {
                                     let hyphenating = c.hyphenating();
                                     let mut offset = c.inner_width();
                                     if hyphenating {
@@ -393,7 +393,7 @@ impl Colonnade {
                                 }
                             }
                             let new_length = l + true_width(w) + if first { 0 } else { 1 };
-                            if new_length + c.padding_right > c.width {
+                            if new_length + c.padding_right() > c.width() {
                                 tuple.1.insert(0, w);
                                 break;
                             } else {
@@ -407,9 +407,9 @@ impl Colonnade {
                             }
                         }
                         let phrase_width = true_width(&phrase);
-                        if phrase_width < c.width {
-                            let surplus = c.width - phrase_width;
-                            match c.alignment {
+                        if phrase_width < c.width() {
+                            let surplus = c.width() - phrase_width;
+                            match c.alignment() {
                                 Alignment::Left => {
                                     line += &phrase;
                                     line += &" ".repeat(surplus);
@@ -421,9 +421,9 @@ impl Colonnade {
                                     line += &" ".repeat(surplus - left_bit);
                                 }
                                 Alignment::Right => {
-                                    line += &" ".repeat(surplus - c.padding_right);
+                                    line += &" ".repeat(surplus - c.padding_right());
                                     line += &phrase;
-                                    line += &" ".repeat(c.padding_right);
+                                    line += &" ".repeat(c.padding_right());
                                 }
                                 Alignment::Justify => {
                                     let words: Vec<&str> = phrase.split(' ').collect();
@@ -433,7 +433,7 @@ impl Colonnade {
                                         line += &" ".repeat(surplus);
                                     } else {
                                         let gaps = words.len() - 1;
-                                        let rearrangeable = surplus + gaps - c.padding_right;
+                                        let rearrangeable = surplus + gaps - c.padding_right();
                                         let min_spacer = rearrangeable / gaps;
                                         let extra = rearrangeable - min_spacer * gaps;
                                         let extra_offset = words.len() - extra;
@@ -448,7 +448,7 @@ impl Colonnade {
                                                 line += word;
                                             }
                                         }
-                                        line += &" ".repeat(c.padding_right);
+                                        line += &" ".repeat(c.padding_right());
                                     }
                                 }
                             }
@@ -462,14 +462,14 @@ impl Colonnade {
             }
 
             'outer: for c in &self.columns {
-                match c.vertical_alignment {
+                match c.vertical_alignment() {
                     VerticalAlignment::Top => (),
                     _ => {
                         let blank = c.blank_line();
-                        let end = current_lines.len() - c.padding_bottom;
+                        let end = current_lines.len() - c.padding_bottom();
                         let mut movable_lines = 0;
                         let mut pointer = end - 1;
-                        let top_pointer = c.padding_top;
+                        let top_pointer = c.padding_top();
                         while pointer < current_lines.len()
                             && current_lines[pointer][c.index].1 == blank
                         {
@@ -485,7 +485,7 @@ impl Colonnade {
                         if movable_lines == 0 {
                             continue 'outer;
                         }
-                        let lines_to_move = if c.vertical_alignment == VerticalAlignment::Middle {
+                        let lines_to_move = if c.vertical_alignment() == VerticalAlignment::Middle {
                             movable_lines / 2
                         } else {
                             movable_lines
@@ -517,7 +517,7 @@ impl Colonnade {
     pub fn reset(&mut self) -> &mut Self {
         for column in &mut self.columns {
             column.set_adjusted(false);
-            column.width = 0;
+            column.set_width(0);
         }
         self
     }
@@ -561,7 +561,7 @@ impl Colonnade {
         for row in table {
             for (c_idx, cell) in row.iter().enumerate() {
                 let width = width_after_normalization(cell) + self.columns[c_idx].horizontal_padding();
-                if width >= self.columns[c_idx].width {
+                if width >= self.columns[c_idx].width() {
                     self.columns[c_idx].expand(width);
                 }
             }
@@ -575,12 +575,12 @@ impl Colonnade {
         let mut modified_columns: Vec<usize> = Vec::with_capacity(self.len());
         for priority in self.priorities() {
             for c_idx in 0..self.len() {
-                if self.columns[c_idx].priority == priority && self.columns[c_idx].is_shrinkable() {
+                if self.columns[c_idx].priority() == priority && self.columns[c_idx].is_shrinkable() {
                     modified_columns.push(c_idx);
                     self.columns[c_idx].shrink(0);
                     for row in table {
                         let word_width = longest_word(row[c_idx]) + self.columns[c_idx].horizontal_padding();
-                        if word_width > self.columns[c_idx].width {
+                        if word_width > self.columns[c_idx].width() {
                             self.columns[c_idx].expand(word_width);
                         }
                     }
@@ -602,7 +602,7 @@ impl Colonnade {
 
             let mut priorities: Vec<usize> = truncatable_columns
                 .iter()
-                .map(|&i| self.columns[i].priority)
+                .map(|&i| self.columns[i].priority())
                 .collect();
             priorities.sort_unstable();
             priorities.dedup();
@@ -611,7 +611,7 @@ impl Colonnade {
             'outer: for priority in priorities {
                 let mut shrinkables: Vec<usize> = truncatable_columns
                     .iter()
-                    .filter(|&&i| self.columns[i].priority == priority)
+                    .filter(|&&i| self.columns[i].priority() == priority)
                     .copied()
                     .collect();
                 loop {
@@ -640,18 +640,18 @@ impl Colonnade {
                 while self.required_width() < self.width {
                     if let Some(priority) = modified_columns
                         .iter()
-                        .map(|&i| self.columns[i].priority)
+                        .map(|&i| self.columns[i].priority())
                         .min()
                     {
                         let mut winners: Vec<usize> = modified_columns
                             .iter()
-                            .filter(|&&i| self.columns[i].priority == priority)
+                            .filter(|&&i| self.columns[i].priority() == priority)
                             .copied()
                             .collect();
                         let surplus = self.width.saturating_sub(self.required_width());
                         if surplus <= winners.len() {
                             for &i in &winners[..surplus] {
-                                self.columns[i].width += 1;
+                                self.columns[i].expand_by(1);
                             }
                         } else {
                             loop {
@@ -665,7 +665,7 @@ impl Colonnade {
                                 }
                                 if surplus <= winners.len() {
                                     for &i in &winners[..surplus] {
-                                        self.columns[i].width += 1;
+                                        self.columns[i].expand_by(1);
                                     }
                                     break;
                                 }
@@ -678,7 +678,7 @@ impl Colonnade {
                                     break;
                                 }
                             }
-                            modified_columns.retain(|&i| self.columns[i].priority != priority);
+                            modified_columns.retain(|&i| self.columns[i].priority() != priority);
                         }
                     } else {
                         break;
@@ -700,7 +700,7 @@ impl Colonnade {
     /// Assign the same priority to all columns.
     pub fn priority(&mut self, priority: usize) -> &mut Self {
         for column in &mut self.columns {
-            column.priority = priority;
+            column.set_priority(priority);
         }
         self
     }
@@ -708,7 +708,7 @@ impl Colonnade {
     /// Assign the same maximum width to all columns.
     pub fn max_width(&mut self, max_width: usize) -> Result<&mut Self, ColonnadeError> {
         for column in &mut self.columns {
-            column.max_width(max_width)?;
+            column.set_max_width(max_width)?;
         }
         Ok(self)
     }
@@ -716,7 +716,7 @@ impl Colonnade {
     /// Assign the same minimum width to all columns.
     pub fn min_width(&mut self, min_width: usize) -> Result<&mut Self, ColonnadeError> {
         for column in &mut self.columns {
-            column.min_width(min_width)?;
+            column.set_min_width(min_width)?;
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
@@ -728,7 +728,7 @@ impl Colonnade {
     /// Assign the same maximum and minimum width to all columns.
     pub fn fixed_width(&mut self, width: usize) -> Result<&mut Self, ColonnadeError> {
         for column in &mut self.columns {
-            column.fixed_width(width)?;
+            column.set_fixed_width(width)?;
         }
         Ok(self)
     }
@@ -744,7 +744,7 @@ impl Colonnade {
     /// Assign all columns the same alignment.
     pub fn alignment(&mut self, alignment: Alignment) -> &mut Self {
         for column in &mut self.columns {
-            column.alignment(alignment);
+            column.set_alignment(alignment);
         }
         self
     }
@@ -752,7 +752,7 @@ impl Colonnade {
     /// Assign all columns the same vertical alignment.
     pub fn vertical_alignment(&mut self, vertical_alignment: VerticalAlignment) -> &mut Self {
         for column in &mut self.columns {
-            column.vertical_alignment(vertical_alignment);
+            column.set_vertical_alignment(vertical_alignment);
         }
         self
     }
@@ -760,7 +760,7 @@ impl Colonnade {
     /// Assign all columns the same left margin.
     pub fn left_margin(&mut self, left_margin: usize) -> Result<&mut Self, ColonnadeError> {
         for column in &mut self.columns {
-            column.left_margin(left_margin);
+            column.set_left_margin(left_margin);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
@@ -772,7 +772,7 @@ impl Colonnade {
     /// Assign all columns the same padding.
     pub fn padding(&mut self, padding: usize) -> Result<&mut Self, ColonnadeError> {
         for column in &mut self.columns {
-            column.padding(padding);
+            column.set_padding(padding);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
@@ -784,7 +784,7 @@ impl Colonnade {
     /// Assign all columns the same horizontal padding.
     pub fn padding_horizontal(&mut self, padding: usize) -> Result<&mut Self, ColonnadeError> {
         for column in &mut self.columns {
-            column.padding_horizontal(padding);
+            column.set_padding_horizontal(padding);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
@@ -796,7 +796,7 @@ impl Colonnade {
     /// Assign all columns the same left padding.
     pub fn padding_left(&mut self, padding: usize) -> Result<&mut Self, ColonnadeError> {
         for column in &mut self.columns {
-            column.padding_left(padding);
+            column.set_padding_left(padding);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
@@ -808,7 +808,7 @@ impl Colonnade {
     /// Assign all columns the same right padding.
     pub fn padding_right(&mut self, padding: usize) -> Result<&mut Self, ColonnadeError> {
         for column in &mut self.columns {
-            column.padding_right(padding);
+            column.set_padding_right(padding);
         }
         if !self.sufficient_space() {
             Err(ColonnadeError::InsufficientSpace)
@@ -820,7 +820,7 @@ impl Colonnade {
     /// Assign all columns the same vertical padding.
     pub fn padding_vertical(&mut self, padding: usize) -> &mut Self {
         for column in &mut self.columns {
-            column.padding_vertical(padding);
+            column.set_padding_vertical(padding);
         }
         self
     }
@@ -828,7 +828,7 @@ impl Colonnade {
     /// Assign all columns the same top padding.
     pub fn padding_top(&mut self, padding: usize) -> &mut Self {
         for column in &mut self.columns {
-            column.padding_top(padding);
+            column.set_padding_top(padding);
         }
         self
     }
@@ -836,7 +836,7 @@ impl Colonnade {
     /// Assign all columns the same bottom padding.
     pub fn padding_bottom(&mut self, padding: usize) -> &mut Self {
         for column in &mut self.columns {
-            column.padding_bottom(padding);
+            column.set_padding_bottom(padding);
         }
         self
     }
@@ -844,7 +844,7 @@ impl Colonnade {
     /// Toggle the hyphenation of all columns.
     pub fn hyphenate(&mut self, hyphenate: bool) -> &mut Self {
         for column in &mut self.columns {
-            column.hyphenate(hyphenate);
+            column.set_hyphenate(hyphenate);
         }
         self
     }

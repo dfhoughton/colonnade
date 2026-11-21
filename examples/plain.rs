@@ -15,11 +15,11 @@ fn main() {
 
     // configure the table a bit
     colonnade.left_margin(4);
-    colonnade.columns[0].left_margin(8); // the first column should have a left margin 8 spaces wide
+    colonnade.columns[0].set_left_margin(8); // the first column should have a left margin 8 spaces wide
     colonnade.fixed_width(15);
     colonnade.columns[1].clear_limits(); // the central column has no fixed size limits
-    colonnade.columns[0].alignment(Alignment::Right);
-    colonnade.columns[1].alignment(Alignment::Center);
+    colonnade.columns[0].set_alignment(Alignment::Right);
+    colonnade.columns[1].set_alignment(Alignment::Center);
     colonnade.spaces_between_rows(1); // add a blank link between rows
 
     // now print out the table

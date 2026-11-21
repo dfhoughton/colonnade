@@ -8,19 +8,19 @@ use crate::error::ColonnadeError;
 pub struct Column {
     /// Column index (0-based)
     pub index: usize,
-    pub alignment: Alignment,
-    pub vertical_alignment: VerticalAlignment,
-    pub left_margin: usize,
+    alignment: Alignment,
+    vertical_alignment: VerticalAlignment,
+    left_margin: usize,
     /// the width of the column excluding any left margin
-    pub width: usize,
-    pub priority: usize,
-    pub min_width: Option<usize>,
-    pub max_width: Option<usize>,
-    pub padding_left: usize,
-    pub padding_right: usize,
-    pub padding_top: usize,
-    pub padding_bottom: usize,
-    pub hyphenate: bool,
+    width: usize,
+    priority: usize,
+    min_width: Option<usize>,
+    max_width: Option<usize>,
+    padding_left: usize,
+    padding_right: usize,
+    padding_top: usize,
+    padding_bottom: usize,
+    hyphenate: bool,
     /// Internal flag tracking whether the column has been adjusted
     adjusted: bool,
 }
@@ -56,6 +56,33 @@ impl Column {
         self.padding_top + self.padding_bottom
     }
 
+    // Getters for private fields
+    
+    /// Get the column's alignment.
+    pub fn alignment(&self) -> Alignment {
+        self.alignment
+    }
+
+    /// Get the column's vertical alignment.
+    pub fn vertical_alignment(&self) -> VerticalAlignment {
+        self.vertical_alignment
+    }
+
+    /// Get the left margin.
+    pub fn left_margin(&self) -> usize {
+        self.left_margin
+    }
+
+    /// Get the width.
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Get the priority.
+    pub fn priority(&self) -> usize {
+        self.priority
+    }
+
     /// Check if the column has been adjusted.
     pub fn is_adjusted(&self) -> bool {
         self.adjusted
@@ -88,6 +115,36 @@ impl Column {
     /// Check if hyphenation should be applied.
     pub fn hyphenating(&self) -> bool {
         self.hyphenate && self.inner_width() > 1
+    }
+
+    /// Get the raw minimum width option.
+    pub fn min_width(&self) -> Option<usize> {
+        self.min_width
+    }
+
+    /// Get the raw maximum width option.
+    pub fn max_width(&self) -> Option<usize> {
+        self.max_width
+    }
+
+    /// Get the left padding.
+    pub fn padding_left(&self) -> usize {
+        self.padding_left
+    }
+
+    /// Get the right padding.
+    pub fn padding_right(&self) -> usize {
+        self.padding_right
+    }
+
+    /// Get the top padding.
+    pub fn padding_top(&self) -> usize {
+        self.padding_top
+    }
+
+    /// Get the bottom padding.
+    pub fn padding_bottom(&self) -> usize {
+        self.padding_bottom
     }
 
     /// Check if the column can be shrunk.
@@ -171,7 +228,7 @@ impl Column {
     /// # Arguments
     ///
     /// * `priority` - The column's priority. Lower numbers confer higher priority; 0 is the highest priority.
-    pub fn priority(&mut self, priority: usize) -> &mut Self {
+    pub fn set_priority(&mut self, priority: usize) -> &mut Self {
         self.priority = priority;
         self.adjusted = false;
         self
@@ -186,7 +243,7 @@ impl Column {
     /// # Errors
     ///
     /// * `ColonnadeError::MinGreaterThanMax` - If the maximum width conflicts with the minimum width.
-    pub fn max_width(&mut self, max_width: usize) -> Result<&mut Self, ColonnadeError> {
+    pub fn set_max_width(&mut self, max_width: usize) -> Result<&mut Self, ColonnadeError> {
         if self.min_width.unwrap_or(max_width) > max_width {
             return Err(ColonnadeError::MinGreaterThanMax(self.index));
         }
@@ -204,7 +261,7 @@ impl Column {
     /// # Errors
     ///
     /// * `ColonnadeError::MinGreaterThanMax` - If the minimum width conflicts with the maximum width.
-    pub fn min_width(&mut self, min_width: usize) -> Result<&mut Self, ColonnadeError> {
+    pub fn set_min_width(&mut self, min_width: usize) -> Result<&mut Self, ColonnadeError> {
         if self.max_width.unwrap_or(min_width) < min_width {
             return Err(ColonnadeError::MinGreaterThanMax(self.index));
         }
@@ -223,11 +280,11 @@ impl Column {
     /// # Errors
     ///
     /// * `ColonnadeError::MinGreaterThanMax` - If the width constraints conflict.
-    pub fn fixed_width(&mut self, width: usize) -> Result<&mut Self, ColonnadeError> {
+    pub fn set_fixed_width(&mut self, width: usize) -> Result<&mut Self, ColonnadeError> {
         self.min_width = None;
         self.max_width = None;
-        self.min_width(width)?;
-        self.max_width(width)?;
+        self.set_min_width(width)?;
+        self.set_max_width(width)?;
         Ok(self)
     }
 
@@ -240,26 +297,26 @@ impl Column {
     }
 
     /// Set the alignment for this column.
-    pub fn alignment(&mut self, alignment: Alignment) -> &mut Self {
+    pub fn set_alignment(&mut self, alignment: Alignment) -> &mut Self {
         self.alignment = alignment;
         self
     }
 
     /// Set the vertical alignment for this column.
-    pub fn vertical_alignment(&mut self, vertical_alignment: VerticalAlignment) -> &mut Self {
+    pub fn set_vertical_alignment(&mut self, vertical_alignment: VerticalAlignment) -> &mut Self {
         self.vertical_alignment = vertical_alignment;
         self
     }
 
     /// Set the left margin for this column.
-    pub fn left_margin(&mut self, left_margin: usize) -> &mut Self {
+    pub fn set_left_margin(&mut self, left_margin: usize) -> &mut Self {
         self.left_margin = left_margin;
         self.adjusted = false;
         self
     }
 
     /// Set padding on all sides.
-    pub fn padding(&mut self, padding: usize) -> &mut Self {
+    pub fn set_padding(&mut self, padding: usize) -> &mut Self {
         self.padding_left = padding;
         self.padding_right = padding;
         self.padding_top = padding;
@@ -269,7 +326,7 @@ impl Column {
     }
 
     /// Set horizontal padding (left and right).
-    pub fn padding_horizontal(&mut self, padding: usize) -> &mut Self {
+    pub fn set_padding_horizontal(&mut self, padding: usize) -> &mut Self {
         self.padding_left = padding;
         self.padding_right = padding;
         self.adjusted = false;
@@ -277,41 +334,52 @@ impl Column {
     }
 
     /// Set left padding.
-    pub fn padding_left(&mut self, padding: usize) -> &mut Self {
+    pub fn set_padding_left(&mut self, padding: usize) -> &mut Self {
         self.padding_left = padding;
         self.adjusted = false;
         self
     }
 
     /// Set right padding.
-    pub fn padding_right(&mut self, padding: usize) -> &mut Self {
+    pub fn set_padding_right(&mut self, padding: usize) -> &mut Self {
         self.padding_right = padding;
         self.adjusted = false;
         self
     }
 
     /// Set vertical padding (top and bottom).
-    pub fn padding_vertical(&mut self, padding: usize) -> &mut Self {
+    pub fn set_padding_vertical(&mut self, padding: usize) -> &mut Self {
         self.padding_top = padding;
         self.padding_bottom = padding;
         self
     }
 
     /// Set top padding.
-    pub fn padding_top(&mut self, padding: usize) -> &mut Self {
+    pub fn set_padding_top(&mut self, padding: usize) -> &mut Self {
         self.padding_top = padding;
         self
     }
 
     /// Set bottom padding.
-    pub fn padding_bottom(&mut self, padding: usize) -> &mut Self {
+    pub fn set_padding_bottom(&mut self, padding: usize) -> &mut Self {
         self.padding_bottom = padding;
         self
     }
 
+    /// Set the width directly (internal use).
+    pub fn set_width(&mut self, width: usize) -> &mut Self {
+        self.width = width;
+        self
+    }
+
     /// Toggle whether words too wide to fit in the column are hyphenated when split.
-    pub fn hyphenate(&mut self, hyphenate: bool) -> &mut Self {
+    pub fn set_hyphenate(&mut self, hyphenate: bool) -> &mut Self {
         self.hyphenate = hyphenate;
         self
+    }
+
+    /// Get the hyphenate flag.
+    pub fn hyphenate(&self) -> bool {
+        self.hyphenate
     }
 }

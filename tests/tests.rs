@@ -51,9 +51,9 @@ fn center_justification() {
 #[test]
 fn left_center_right() {
     let mut colonnade = Colonnade::new(3, 100).unwrap();
-    colonnade.columns[0].alignment(Alignment::Left);
-    colonnade.columns[1].alignment(Alignment::Center);
-    colonnade.columns[2].alignment(Alignment::Right);
+    colonnade.columns[0].set_alignment(Alignment::Left);
+    colonnade.columns[1].set_alignment(Alignment::Center);
+    colonnade.columns[2].set_alignment(Alignment::Right);
     let data = vec![vec![7, 8, 9], vec![100, 110, 120]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
@@ -64,7 +64,7 @@ fn left_center_right() {
 fn wrap() {
     let mut colonnade = Colonnade::new(3, 10).unwrap();
     colonnade.left_margin(2).unwrap();
-    colonnade.columns[0].left_margin(0);
+    colonnade.columns[0].set_left_margin(0);
     let data = vec![vec!["1 2 3", "4 5 6", "7 8 9"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 3);
@@ -76,7 +76,7 @@ fn wrap() {
 fn wrap2() {
     let mut colonnade = Colonnade::new(3, 13).unwrap();
     colonnade.left_margin(2).unwrap();
-    colonnade.columns[0].left_margin(0);
+    colonnade.columns[0].set_left_margin(0);
     let data = vec![vec!["1 2 3", "4 5 6", "7 8 9"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
@@ -117,7 +117,7 @@ fn too_skinny_to_hyphenate() {
 #[test]
 fn min_width() {
     let mut colonnade = Colonnade::new(2, 10).unwrap();
-    colonnade.columns[0].min_width(5).unwrap();
+    colonnade.columns[0].set_min_width(5).unwrap();
     let data = vec![vec!["a", "b"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 1);
@@ -126,7 +126,7 @@ fn min_width() {
 #[test]
 fn max_width() {
     let mut colonnade = Colonnade::new(2, 10).unwrap();
-    colonnade.columns[0].max_width(5).unwrap();
+    colonnade.columns[0].set_max_width(5).unwrap();
     let data = vec![vec!["abcdef", "g"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 2);
@@ -146,7 +146,7 @@ fn fixed_width() {
 #[test]
 fn priority() {
     let mut colonnade = Colonnade::new(2, 20).unwrap();
-    colonnade.columns[0].priority(0);
+    colonnade.columns[0].set_priority(0);
     let data = vec![vec!["a bunch of words", "these are some words"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(lines.len(), 4);
@@ -254,7 +254,7 @@ fn padding_right() {
 #[test]
 fn centered_text() {
     let mut colonnade = Colonnade::new(2, 3).unwrap();
-    colonnade.columns[0].vertical_alignment(VerticalAlignment::Middle);
+    colonnade.columns[0].set_vertical_alignment(VerticalAlignment::Middle);
     let data = vec![vec!["1", "2 3 4"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(3, lines.len(), "got the right number of lines");
@@ -266,8 +266,8 @@ fn centered_text() {
 #[test]
 fn centered_text_with_padding() {
     let mut colonnade = Colonnade::new(2, 3).unwrap();
-    colonnade.columns[0].vertical_alignment(VerticalAlignment::Middle);
-    colonnade.columns[0].padding_vertical(1);
+    colonnade.columns[0].set_vertical_alignment(VerticalAlignment::Middle);
+    colonnade.columns[0].set_padding_vertical(1);
     let data = vec![vec!["1", "2 3 4"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(3, lines.len(), "got the right number of lines");
@@ -279,7 +279,7 @@ fn centered_text_with_padding() {
 #[test]
 fn bottom_text() {
     let mut colonnade = Colonnade::new(2, 3).unwrap();
-    colonnade.columns[0].vertical_alignment(VerticalAlignment::Bottom);
+    colonnade.columns[0].set_vertical_alignment(VerticalAlignment::Bottom);
     let data = vec![vec!["1", "2 3 4"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(3, lines.len(), "got the right number of lines");
@@ -291,8 +291,8 @@ fn bottom_text() {
 #[test]
 fn bottom_text_with_padding() {
     let mut colonnade = Colonnade::new(2, 3).unwrap();
-    colonnade.columns[0].vertical_alignment(VerticalAlignment::Bottom);
-    colonnade.columns[0].padding_vertical(1);
+    colonnade.columns[0].set_vertical_alignment(VerticalAlignment::Bottom);
+    colonnade.columns[0].set_padding_vertical(1);
     let data = vec![vec!["1", "2 3 4"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(3, lines.len(), "got the right number of lines");
@@ -304,8 +304,8 @@ fn bottom_text_with_padding() {
 #[test]
 fn bottom_text_with_bottom_padding() {
     let mut colonnade = Colonnade::new(2, 3).unwrap();
-    colonnade.columns[0].vertical_alignment(VerticalAlignment::Bottom);
-    colonnade.columns[0].padding_bottom(1);
+    colonnade.columns[0].set_vertical_alignment(VerticalAlignment::Bottom);
+    colonnade.columns[0].set_padding_bottom(1);
     let data = vec![vec!["1", "2 3 4"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(3, lines.len(), "got the right number of lines");
@@ -317,8 +317,8 @@ fn bottom_text_with_bottom_padding() {
 #[test]
 fn bottom_text_with_top_padding() {
     let mut colonnade = Colonnade::new(2, 3).unwrap();
-    colonnade.columns[0].vertical_alignment(VerticalAlignment::Bottom);
-    colonnade.columns[0].padding_top(1);
+    colonnade.columns[0].set_vertical_alignment(VerticalAlignment::Bottom);
+    colonnade.columns[0].set_padding_top(1);
     let data = vec![vec!["1", "2 3 4"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(3, lines.len(), "got the right number of lines");
@@ -330,7 +330,7 @@ fn bottom_text_with_top_padding() {
 #[test]
 fn centered_text_two_rows() {
     let mut colonnade = Colonnade::new(2, 3).unwrap();
-    colonnade.columns[0].vertical_alignment(VerticalAlignment::Middle);
+    colonnade.columns[0].set_vertical_alignment(VerticalAlignment::Middle);
     let data = vec![vec!["5", "6"], vec!["1", "2 3 4"]];
     let lines = colonnade.tabulate(&data).unwrap();
     assert_eq!(4, lines.len(), "got the right number of lines");
@@ -399,8 +399,8 @@ fn regression1() {
     ];
     let mut colonnade = Colonnade::new(2, 127).unwrap();
     colonnade.columns[1]
-        .alignment(Alignment::Right)
-        .left_margin(2);
+        .set_alignment(Alignment::Right)
+        .set_left_margin(2);
     colonnade.tabulate(attributes).unwrap();
     assert!(true, "no panic");
 }

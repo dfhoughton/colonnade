@@ -30,14 +30,14 @@ fn main() {
         .unwrap()
         .fixed_width(15);
     colonnade.columns[0]
-        .alignment(Alignment::Right)
-        .left_margin(8);
+        .set_alignment(Alignment::Right)
+        .set_left_margin(8);
     colonnade.columns[1]
         .clear_limits()
-        .alignment(Alignment::Center)
-        .vertical_alignment(VerticalAlignment::Middle);
-    colonnade.columns[2].vertical_alignment(VerticalAlignment::Middle);
-    colonnade.columns[3].vertical_alignment(VerticalAlignment::Bottom);
+        .set_alignment(Alignment::Center)
+        .set_vertical_alignment(VerticalAlignment::Middle);
+    colonnade.columns[2].set_vertical_alignment(VerticalAlignment::Middle);
+    colonnade.columns[3].set_vertical_alignment(VerticalAlignment::Bottom);
 
     // now print out the table
     let mut style_toggle = 0;
