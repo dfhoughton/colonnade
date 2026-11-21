@@ -1,6 +1,6 @@
 # Change Log
 
-## Unreleased
+## 1.3.4 *2023-11-21*
 * Upgraded to Rust 2024 edition
 * Updated and pinned all dependencies
 * Removed `extern crate` declarations (Rust 2018+ style)
